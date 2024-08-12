@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Registration</title>
+</head>
+<body>
+    <h1>Teacher Register</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}  <!-- Show only non-field specific errors -->
+        {{ form.username.errors }}  <!-- Customize individual field errors -->
+        <div>
+            <label for="id_username">Username:</label>
+            {{ form.username }}
+        </div>
+        <div>
+            <label for="id_first_name">First Name:</label>
+            {{ form.first_name }}
+        </div>
+        <div>
+            <label for="id_last_name">Last Name:</label>
+            {{ form.last_name }}
+        </div>
+        <div>
+            <label for="id_class_assigned">Class Assigned:</label>
+            {{ form.class_assigned }}
+        </div>
+        <div>
+            <label for="id_division_assigned">Division Assigned:</label>
+            {{ form.division_assigned }}
+        </div>
+        <div>
+            <label for="id_password1">Password:</label>
+            {{ form.password1 }}
+        </div>
+        <div>
+            <label for="id_password2">Confirm Password:</label>
+            {{ form.password2 }}
+        </div>
+        <button type="submit">Register</button>
+    </form>
+</body>
+</html>

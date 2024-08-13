@@ -21,11 +21,14 @@ from my_app import views
 
 
 urlpatterns = [
+    path("base/", views.BASE, name="base"),
     path('admin/', admin.site.urls),
     path('', views.Login, name='login'),
     path('role', views.Role, name='role'),
     path('parent/register/', views.Parent_Reg, name='parent_register'),
     path('teacher/register/', views.Teacher_Reg, name='teacher_register'),
     path('teacher/dashboard/', views.Teacher_Dashboard, name='teacher_dashboard'),
+    path('teacher/manage-students/', views.Manage_Students, name='manage_students'),
+    path('teacher/manage-students/add-student', views.Add_student, name='add_student'),
 
 ]

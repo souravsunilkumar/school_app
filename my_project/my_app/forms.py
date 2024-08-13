@@ -19,3 +19,12 @@ class TeacherRegistrationForm(UserCreationForm):
         if password1 and password2 and password1 != password2:
             raise forms.ValidationError("Passwords don't match")
         return password2
+    
+class StudentForm(forms.ModelForm):
+    class Meta:
+        model = Student
+        fields = ['admission_number', 'first_name', 'last_name', 'roll_number', 'class_assigned', 'division_assigned']
+        widgets = {
+            'class_assigned': forms.TextInput(attrs={'readonly': 'readonly'}),
+            'division_assigned': forms.TextInput(attrs={'readonly': 'readonly'}),
+        }

@@ -3,8 +3,12 @@ from django.http import HttpResponse
 from .models import *
 from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate, login
+from django.contrib.auth.decorators import login_required
 from .forms import *
 # Create your views here.
+
+def BASE(req):
+    return render(req,'base.html')
 
 def Login(request):
     if request.method == 'POST':
@@ -28,6 +32,7 @@ def Login(request):
 
 def Parent_Reg(req):
     return render(req,'parent_register.html')
+
 
 def Teacher_Reg(request):
     if request.method == 'POST':
@@ -64,5 +69,33 @@ def Role(request):
             return redirect('teacher_register')  # Replace with the actual URL name for teacher registration
     return render(request, 'role.html')
 
-def Teacher_Dashboard(req):
-    return render(req,'teacher/teacher_dashboard.html')
+@login_required
+def Teacher_Dashboard(request):
+    # Access the logged-in user's first name and last name
+    first_name = request.user.first_name
+    last_name = request.user.last_name
+    return render(request, 'teacher/teacher_dashboard.html', {'first_name': first_name, 'last_name': last_name})
+
+@login_required
+def Manage_Students(request):
+    return render(request,'teacher/manage_students.html')
+
+@login_required
+def Add_student(request):
+    teacher = Teacher_Model.objects.get(user=request.user)
+    
+    if request.method == "POST":
+        form = StudentForm(request.POST)
+        if form.is_valid():
+            student = form.save(commit=False)
+            student.teacher = teacher
+            # These fields are already filled by the form as readonly fields
+            student.save()
+            return redirect('add_student')  # Replace with your success URL
+    else:
+        form = StudentForm(initial={
+            'class_assigned': teacher.class_assigned,
+            'division_assigned': teacher.division_assigned
+        })
+
+    return render(request, 'teacher/manage_students/add_student.html', {'form': form})

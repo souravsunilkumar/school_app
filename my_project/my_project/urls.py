@@ -30,5 +30,11 @@ urlpatterns = [
     path('teacher/dashboard/', views.Teacher_Dashboard, name='teacher_dashboard'),
     path('teacher/manage-students/', views.Manage_Students, name='manage_students'),
     path('teacher/manage-students/add-student', views.Add_student, name='add_student'),
+    path('teacher/manage-students/mark-attendance', views.Mark_Student_Attendance, name='mark_attendance'),
+    path('teacher/manage-students/attendance-report', views.Attendance_Report, name='attendance_report'),
+    path('teacher/manage-students/select-date', views.Select_Date, name='select_date'),
+    path('teacher/manage-students/edit-attendance/', views.Edit_Attendance, name='edit_attendance'),
+    path('teacher/manage-students/download-attendance-report/', views.Download_Attendance_Report, name='download_attendance_report'),
+
 
 ]

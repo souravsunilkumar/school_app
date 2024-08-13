@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Attendance Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            page-break-inside: auto;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 4px;
+            text-align: left;
+            word-wrap: break-word; /* Wrap text in cells */
+        }
+        th {
+            text-align: center;
+        }
+        th.date-header {
+            white-space: nowrap; /* Prevent header text from wrapping */
+            text-align: center;
+            font-size: 8px; /* Smaller font size */
+        }
+        td {
+            font-size: 8px; /* Smaller font size */
+        }
+        .absent {
+            color: red;
+        }
+        @page {
+            margin: 20mm;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+    <h1>Attendance Report</h1>
+    <p>From {{ start_date }} to {{ end_date }}</p>
+    
+    {% for page in attendance_list.paginator.page_range %}
+        {% if page == attendance_list.number %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        {% for single_date in attendance_list.object_list.0.1 %}
+                            <th class="date-header">{{ single_date.date }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student, attendance in attendance_list.object_list %}
+                    <tr>
+                        <td>{{ student.first_name }} {{ student.last_name }}</td>
+                        {% for record in attendance %}
+                            <td class="{% if record.status == 'Absent' %}absent{% endif %}">{{ record.status }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="page-break"></div>
+        {% endif %}
+    {% endfor %}
+</body>
+</html>

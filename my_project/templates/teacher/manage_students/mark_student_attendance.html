@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block content %}
+<a href="{% url 'manage_students' %}">Back</a>
+<h1>Mark Students Attendance</h1>
+
+
+<form method="post">
+    {% csrf_token %}
+    <label for="attendance_date">Date:</label>
+    <input type="date" id="attendance_date" name="attendance_date" value="{{ attendance_date }}" required>
+    
+    <table border="1">
+        <tr>
+            <th>Roll Number</th>
+            <th>Student Name</th>
+            <th>Present</th>
+            <th>Absent</th>
+        </tr>
+        {% for student in students %}
+        <tr>
+            <td>{{ student.roll_number }}</td>
+            <td>{{ student.first_name }} {{ student.last_name }}</td>
+            <td>
+                <input type="checkbox" name="present_{{ student.id }}" class="present-checkbox" data-student-id="{{ student.id }}" {% if student.id not in absent_students %}checked{% endif %}>
+            </td>
+            <td>
+                <input type="checkbox" name="absent_{{ student.id }}" class="absent-checkbox" data-student-id="{{ student.id }}" {% if student.id in absent_students %}checked{% endif %}>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    <button type="submit">Submit Attendance</button>
+</form>
+
+{% if error_message %}
+<p style="color: red;">{{ error_message }}</p>
+{% endif %}
+
+<script>
+// JavaScript to toggle the checkboxes
+document.querySelectorAll('.present-checkbox').forEach(function(presentCheckbox) {
+    presentCheckbox.addEventListener('change', function() {
+        var studentId = this.getAttribute('data-student-id');
+        var absentCheckbox = document.querySelector('.absent-checkbox[data-student-id="' + studentId + '"]');
+        if (this.checked) {
+            absentCheckbox.checked = false;
+        }
+    });
+});
+
+document.querySelectorAll('.absent-checkbox').forEach(function(absentCheckbox) {
+    absentCheckbox.addEventListener('change', function() {
+        var studentId = this.getAttribute('data-student-id');
+        var presentCheckbox = document.querySelector('.present-checkbox[data-student-id="' + studentId + '"]');
+        if (this.checked) {
+            presentCheckbox.checked = false;
+        }
+    });
+});
+</script>
+
+{% endblock %}

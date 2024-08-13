@@ -1,7 +1,39 @@
 {% extends 'base.html' %}
 {% block content %}
 <h1>Manage Students</h1>
+
 <a href="{% url 'add_student' %}">Add Student</a><br>
 <a href="">Edit Student Details</a><br>
-<a href="">Edit Student Attendance</a>  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="">Mark Student Attendance</a>
+<a href="">Edit Student Attendance</a> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="{% url 'mark_attendance' %}">Mark Student Attendance</a><br>
+<a href="{% url 'attendance_report' %}">View Attendance report</a><br>
+<a href="{% url 'select_date' %}">Edit Student Attendance</a>
+
+<h2>Students in {{ students.first.class_assigned }} - {{ students.first.division_assigned }}</h2>
+
+<table border="1">
+    <tr>
+        <th>Admission Number</th>
+        <th>Roll Number</th>
+        <th>First Name</th>
+        <th>Last Name</th>
+        <th>Class</th>
+        <th>Division</th>
+    </tr>
+    {% for student in students %}
+    <tr>
+        <td>{{ student.admission_number }}</td>
+        <td>{{ student.roll_number }}</td>
+        <td>{{ student.first_name }}</td>
+        <td>{{ student.last_name }}</td>
+        <td>{{ student.class_assigned }}</td>
+        <td>{{ student.division_assigned }}</td>
+        
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="6">No students found in your assigned class and division.</td>
+    </tr>
+    {% endfor %}
+</table>
+
 {% endblock %}

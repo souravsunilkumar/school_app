@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from datetime import date
 
 # Create your models here.
 
@@ -23,3 +24,12 @@ class Student(models.Model):
 
     def __str__(self):
         return f"{self.roll_number} {self.first_name} {self.last_name} - {self.class_assigned} {self.division_assigned}"
+    
+
+class Attendance(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    date = models.DateField(default=date.today)
+    is_present = models.BooleanField(default=False)  
+
+    def __str__(self):
+        return f"{self.student} - {'Absent' if not self.is_present else 'Present'} on {self.date}"

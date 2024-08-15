@@ -1,5 +1,6 @@
 from django.shortcuts import render,redirect,get_object_or_404
 from django.template.loader import render_to_string
+from django.contrib.auth.hashers import make_password
 from django.http import HttpResponse
 from .models import *
 from django.contrib import messages
@@ -16,8 +17,19 @@ from django.core.paginator import Paginator
 
 # Create your views here.
 
-def BASE(req):
-    return render(req,'base.html')
+def BASE(request):
+    # Check if the user is authenticated
+    if request.user.is_authenticated:
+        # Redirect to the corresponding dashboard based on the user's group
+        if request.user.groups.filter(name='administrator').exists():
+            return redirect('admin_dashboard')
+        elif request.user.groups.filter(name='teacher').exists():
+            return redirect('teacher_dashboard')
+        elif request.user.groups.filter(name='parent').exists():
+            return redirect('parent_dashboard')
+    else:
+        # If not authenticated, redirect to the login page
+        return redirect('login')
 
 def Login(request):
     if request.method == 'POST':
@@ -27,11 +39,8 @@ def Login(request):
         
         if user is not None:
             login(request, user)
-            teacher_group = Group.objects.get(id=1)
-            if teacher_group in user.groups.all():
-                return redirect('teacher_dashboard')
-            else:
-                return redirect('login')  # Redirect to a default dashboard
+            
+            return redirect('base')
         else:
             return render(request, 'login.html', {'error': 'Invalid username or password'})
     return render(request, 'login.html')
@@ -39,31 +48,96 @@ def Login(request):
 def Parent_Reg(req):
     return render(req,'parent_register.html')
 
+def School_Admin_Reg(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        confirm_password = request.POST['confirm_password']
+        school_admin_first_name = request.POST['school_admin_first_name']
+        school_admin_last_name = request.POST['school_admin_last_name']
+        school_name = request.POST['school_name']
+        address = request.POST['address']
+        contact = request.POST['contact']
 
+        if password == confirm_password:
+            # Create the User
+            user = User.objects.create(
+                username=username,
+                first_name=school_admin_first_name,
+                last_name=school_admin_last_name,
+                password=make_password(password)
+            )
+            # Add the user to the administrator group
+            group = Group.objects.get(id=3)  # Assuming group id=3 corresponds to 'administrator'
+            user.groups.add(group)
+
+            # Create the School and save the username of the admin
+            School.objects.create(
+                school_name=school_name,
+                address=address,
+                contact=contact,
+                school_admin_first_name=school_admin_first_name,
+                school_admin_last_name=school_admin_last_name,
+                school_admin_username=username  # Save the admin's username
+            )
+
+            return redirect('login')  # Redirect to login page after successful registration
+
+        else:
+            return render(request, 'school_admin_register.html', {'error': 'Passwords do not match'})
+
+    return render(request, 'school_admin_register.html')
+
+
+@login_required
 def Teacher_Reg(request):
+    # Get the logged-in user's username
+    logged_in_username = request.user.username
+
+    # Check if there's a school with the same admin username
+    try:
+        school = School.objects.get(school_admin_username=logged_in_username)
+        initial_school_name = school.school_name
+    except School.DoesNotExist:
+        initial_school_name = None
+
     if request.method == 'POST':
         form = TeacherRegistrationForm(request.POST)
         if form.is_valid():
-
             user = form.save()
-            
 
             teacher_group = Group.objects.get(name='teacher')
             user.groups.add(teacher_group)
 
             class_assigned = form.cleaned_data.get('class_assigned')
             division_assigned = form.cleaned_data.get('division_assigned')
+            school_name = form.cleaned_data.get('school')
+
+            print("Cleaned Data:", form.cleaned_data)
+            print("School Name:", school_name)
+
+            # Find or create the School object based on the provided name
+            school, created = School.objects.get_or_create(school_name=school_name)
+
             Teacher_Model.objects.create(
                 user=user,
+                school=school,
                 class_assigned=class_assigned,
                 division_assigned=division_assigned
             )
 
-            return redirect('login')
+            return redirect('admin_dashboard')
+        else:
+            print("Form Errors:", form.errors)
     else:
-        form = TeacherRegistrationForm()
+        # Pass the initial value to the form if the school was found
+        form = TeacherRegistrationForm(initial={'school': initial_school_name})
+
     return render(request, 'teacher_register.html', {'form': form})
 
+@login_required
+def Admin_Dashboard(request):
+    return render(request, 'administrator/admin_dashboard.html')
 
 def Role(request):
     if request.method == "POST":
@@ -76,10 +150,12 @@ def Role(request):
 
 @login_required
 def Teacher_Dashboard(request):
-
     first_name = request.user.first_name
     last_name = request.user.last_name
     return render(request, 'teacher/teacher_dashboard.html', {'first_name': first_name, 'last_name': last_name})
+
+def Parent_Dashboard(request):
+    return render(request,'parent/parent_dashboard.html')
 
 @login_required
 def Manage_Students(request):
@@ -98,7 +174,7 @@ def Add_student(request):
     teacher = Teacher_Model.objects.get(user=request.user)
     
     if request.method == "POST":
-        form = StudentForm(request.POST)
+        form = StudentForm(request.POST, teacher=teacher)
         if form.is_valid():
             student = form.save(commit=False)
             student.teacher = teacher
@@ -106,13 +182,13 @@ def Add_student(request):
             messages.success(request, 'Student added successfully!')
             return redirect('add_student')  
     else:
-        form = StudentForm(initial={
+        form = StudentForm(teacher=teacher, initial={
             'class_assigned': teacher.class_assigned,
-            'division_assigned': teacher.division_assigned
+            'division_assigned': teacher.division_assigned,
+            'school': teacher.school
         })
 
     return render(request, 'teacher/manage_students/add_student.html', {'form': form})
-
 
 @login_required
 def Mark_Student_Attendance(request):

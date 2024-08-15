@@ -8,6 +8,7 @@ class TeacherRegistrationForm(UserCreationForm):
     last_name = forms.CharField(max_length=30)
     class_assigned = forms.CharField(max_length=20)
     division_assigned = forms.CharField(max_length=10)
+    school = forms.CharField(max_length=255)  # Use CharField for school name
 
     class Meta:
         model = User
@@ -21,10 +22,22 @@ class TeacherRegistrationForm(UserCreationForm):
         return password2
     
 class StudentForm(forms.ModelForm):
+    school = forms.ModelChoiceField(
+        queryset=School.objects.all(),
+        disabled=True,  # Make it read-only
+        widget=forms.Select
+    )
+
     class Meta:
         model = Student
-        fields = ['admission_number', 'first_name', 'last_name', 'roll_number', 'class_assigned', 'division_assigned']
+        fields = ['admission_number', 'first_name', 'last_name', 'roll_number', 'class_assigned', 'division_assigned', 'school']
         widgets = {
             'class_assigned': forms.TextInput(attrs={'readonly': 'readonly'}),
             'division_assigned': forms.TextInput(attrs={'readonly': 'readonly'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        teacher = kwargs.pop('teacher', None)
+        super().__init__(*args, **kwargs)
+        if teacher:
+            self.fields['school'].initial = teacher.school

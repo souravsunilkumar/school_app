@@ -4,4 +4,5 @@ from .models import *
 # Register your models here.
 admin.site.register(Teacher_Model)
 admin.site.register(Student)
+admin.site.register(School)
 admin.site.register(Attendance)

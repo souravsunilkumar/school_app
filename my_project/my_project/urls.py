@@ -25,9 +25,13 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.Login, name='login'),
     path('role', views.Role, name='role'),
+
+    path('admin-register/', views.School_Admin_Reg, name='admin_register'),
     path('parent/register/', views.Parent_Reg, name='parent_register'),
     path('teacher/register/', views.Teacher_Reg, name='teacher_register'),
+    path('admin-dashboard/', views.Admin_Dashboard, name='admin_dashboard'),
     path('teacher/dashboard/', views.Teacher_Dashboard, name='teacher_dashboard'),
+    path('parent/dashboard/', views.Parent_Dashboard, name='parent_dashboard'),
     path('teacher/manage-students/', views.Manage_Students, name='manage_students'),
     path('teacher/manage-students/add-student', views.Add_student, name='add_student'),
     path('teacher/manage-students/mark-attendance', views.Mark_Student_Attendance, name='mark_attendance'),

@@ -1,76 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Attendance Report</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 10px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            page-break-inside: auto;
-        }
-        table, th, td {
-            border: 1px solid black;
-        }
-        th, td {
-            padding: 4px;
-            text-align: left;
-            word-wrap: break-word; /* Wrap text in cells */
-        }
-        th {
-            text-align: center;
-        }
-        th.date-header {
-            white-space: nowrap; /* Prevent header text from wrapping */
-            text-align: center;
-            font-size: 8px; /* Smaller font size */
-        }
-        td {
-            font-size: 8px; /* Smaller font size */
-        }
-        .absent {
-            color: red;
-        }
-        @page {
-            margin: 20mm;
-        }
-        .page-break {
-            page-break-before: always;
-        }
+        body { font-family: Arial, sans-serif; font-size: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: auto; }
+        th, td { border: 1px solid black; padding: 4px; text-align: center; }
+        th { background-color: #f2f2f2; font-size: 8px; padding: 4px; writing-mode: vertical-rl; transform: rotate(-90deg); }
+        .absent { color: red; }
+        .present { color: green; }
     </style>
 </head>
 <body>
-    <h1>Attendance Report</h1>
-    <p>From {{ start_date }} to {{ end_date }}</p>
-    
-    {% for page in attendance_list.paginator.page_range %}
-        {% if page == attendance_list.number %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Student</th>
-                        {% for single_date in attendance_list.object_list.0.1 %}
-                            <th class="date-header">{{ single_date.date }}</th>
-                        {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for student, attendance in attendance_list.object_list %}
-                    <tr>
-                        <td>{{ student.first_name }} {{ student.last_name }}</td>
-                        {% for record in attendance %}
-                            <td class="{% if record.status == 'Absent' %}absent{% endif %}">{{ record.status }}</td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            <div class="page-break"></div>
-        {% endif %}
-    {% endfor %}
+    <h1 style="font-size: 14px;">Attendance Report</h1>
+    <p>Class: {{ class_teacher.class_assigned }} - {{ class_teacher.division_assigned }}</p>
+    <p>Date Range: {{ start_date }} to {{ end_date }}</p>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 15%;">Student</th>
+                {% for date in dates %}
+                    <th style="width: 5%;">{{ date|date:"d/m" }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for student, attendance in attendance_data.items %}
+            <tr>
+                <td style="width: 15%; text-align: left;">{{ student.first_name }} {{ student.last_name }}</td>
+                {% for record in attendance %}
+                    <td class="{% if record.status == 'Absent' %}absent{% else %}present{% endif %}">
+                        {{ record.status|slice:"0:1" }}
+                    </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </body>
 </html>

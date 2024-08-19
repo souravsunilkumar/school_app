@@ -34,6 +34,7 @@ class Employee(models.Model):
     id = models.AutoField(primary_key=True)  # Explicit id field
     school = models.ForeignKey(School, on_delete=models.CASCADE)  # Foreign key to School model
     user = models.OneToOneField(User, on_delete=models.CASCADE)  # Foreign key to User model
+    user_name=models.CharField(max_length=255, null=True)
     first_name = models.CharField(max_length=255)
     second_name = models.CharField(max_length=255)
     contact_number = models.CharField(max_length=15)
@@ -51,6 +52,7 @@ class Teacher(models.Model):
     id = models.AutoField(primary_key=True)
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    user_name=models.CharField(max_length=255, null=True)
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     contact_number = models.CharField(max_length=15, null=True)
@@ -63,6 +65,7 @@ class Teacher(models.Model):
 class Class_Teacher(models.Model):
     id = models.AutoField(primary_key=True)
     Teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, null=True)
+    user_name=models.CharField(max_length=255, null=True)
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     school = models.ForeignKey(School, on_delete=models.CASCADE)
@@ -76,6 +79,7 @@ class Warden(models.Model):
     id = models.AutoField(primary_key=True)  # Explicit id field
     school = models.ForeignKey(School, on_delete=models.CASCADE)  # Link to School model
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)  # Link to Employee model
+    user_name=models.CharField(max_length=255, null=True)
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     contact_number = models.CharField(max_length=15,null=True)
@@ -92,6 +96,7 @@ class Student(models.Model):
     warden = models.ForeignKey(Warden, on_delete=models.SET_NULL, null=True, blank=True)  
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
+    gender = models.CharField(max_length=100,null=True)
     admission_number = models.CharField(max_length=20, null=True)
     roll_number = models.IntegerField(null=True)
     parents_number = models.CharField(max_length=15,null=True)
@@ -99,7 +104,7 @@ class Student(models.Model):
     division_assigned = models.CharField(max_length=10)
 
     def __str__(self):
-        return f"{self.roll_number} {self.first_name} {self.last_name} - {self.class_assigned} {self.division_assigned}"
+        return f"{self.roll_number} {self.first_name} {self.last_name} - {self.class_assigned} {self.division_assigned} - {self.school}"
     
 
 class Attendance(models.Model):

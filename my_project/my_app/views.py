@@ -2,6 +2,7 @@ from django.shortcuts import render,redirect,get_object_or_404
 from django.template.loader import render_to_string
 from django.contrib.auth.hashers import make_password
 from django.http import HttpResponse
+from django.template.loader import get_template
 from .models import *
 from django.contrib import messages
 from django.contrib.auth.models import User, Group
@@ -13,8 +14,10 @@ from django.core.exceptions import ValidationError
 from xhtml2pdf import pisa
 from io import BytesIO
 from django.core.paginator import Paginator
+import logging
 
 
+logger = logging.getLogger(__name__)
 # Create your views here.
 
 def BASE(request):
@@ -123,6 +126,7 @@ def Employee_Reg(request):
             employee = Employee.objects.create(
                 school=form.cleaned_data['school'],
                 user=user,  # Linking the user to the employee
+                user_name=user.username,  # Save the username in the Employee model
                 first_name=form.cleaned_data['first_name'],
                 second_name=form.cleaned_data['second_name'],
                 contact_number=form.cleaned_data['contact_number'],
@@ -134,6 +138,7 @@ def Employee_Reg(request):
                 Teacher.objects.create(
                     school=form.cleaned_data['school'],
                     employee=employee,
+                    user_name=user.username,  # Save the username in the Teacher model
                     first_name=form.cleaned_data['first_name'],
                     last_name=form.cleaned_data['second_name'],
                     contact_number=form.cleaned_data['contact_number'],
@@ -144,6 +149,7 @@ def Employee_Reg(request):
                 Warden.objects.create(
                     school=form.cleaned_data['school'],
                     employee=employee,
+                    user_name=user.username,  # Save the username in the Warden model
                     first_name=form.cleaned_data['first_name'],
                     last_name=form.cleaned_data['second_name'],
                     contact_number=form.cleaned_data['contact_number'],
@@ -167,31 +173,18 @@ def Assign_Class_Teacher(request):
     if request.method == 'POST':
         form = AssignClassTeacherForm(request.POST, school=school)
         if form.is_valid():
+            class_teacher = form.save(commit=False)
+            class_teacher.school = school  # Set the school to the admin's school
+            class_teacher.save()
+
+            # Update the teacher's is_class_teacher field
             teacher = form.cleaned_data['Teacher']
-            class_assigned = form.cleaned_data['class_assigned']
-            division_assigned = form.cleaned_data['division_assigned']
+            teacher.is_class_teacher = True
+            teacher.save()
 
-            # Check if the teacher is already a class teacher
-            if Class_Teacher.objects.filter(Teacher=teacher).exists() or teacher.is_class_teacher:
-                form.add_error('Teacher', 'This teacher is already a class teacher.')
-            else:
-                # Check if another teacher is already assigned to this class and division in the same school
-                if Class_Teacher.objects.filter(school=school, class_assigned=class_assigned, division_assigned=division_assigned).exists():
-                    form.add_error(None, 'A teacher is already assigned to this class and division in this school.')
-                else:
-                    # Save the Class_Teacher object
-                    class_teacher = form.save(commit=False)
-                    class_teacher.school = school  # Set the school to the admin's school
-                    class_teacher.user = request.user  # Set the user to the logged-in user
-                    class_teacher.save()
-
-                    # Update the teacher's is_class_teacher field
-                    teacher.is_class_teacher = True
-                    teacher.save()
-
-                    # Add a success message and redirect
-                    messages.success(request, f"{teacher.first_name} {teacher.last_name} has been assigned as a Class Teacher.")
-                    return redirect('assign_class_teacher')  # Redirect after successful assignment
+            # Add a success message and redirect
+            messages.success(request, f"{teacher.first_name} {teacher.last_name} has been assigned as a Class Teacher.")
+            return redirect('assign_class_teacher')  # Redirect after successful assignment
     else:
         form = AssignClassTeacherForm(school=school)
 
@@ -207,48 +200,117 @@ def Role(request):
             return redirect('teacher_register')  
     return render(request, 'role.html')
 
+
 @login_required
 def Teacher_Dashboard(request):
-    first_name = request.user.first_name
-    last_name = request.user.last_name
-    return render(request, 'teacher/teacher_dashboard.html', {'first_name': first_name, 'last_name': last_name})
+    teacher = Teacher.objects.filter(employee__user=request.user).first()
 
-def Parent_Dashboard(request):
-    return render(request,'parent/parent_dashboard.html')
+    if teacher and teacher.is_class_teacher:
+        assigned_class = Class_Teacher.objects.filter(Teacher=teacher).first()
+        if assigned_class:
+            return render(request, 'teacher/teacher_dashboard.html', {
+                'first_name': teacher.first_name,
+                'last_name': teacher.last_name,
+                'is_class_teacher': True,
+                'assigned_class': assigned_class
+            })
+    
+    return render(request, 'teacher/teacher_dashboard.html', {
+        'first_name': request.user.first_name,
+        'last_name': request.user.last_name,
+        'is_class_teacher': False
+    })
 
 @login_required
 def Manage_Students(request):
-    teacher = Class_Teacher.objects.get(user=request.user)
-    students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
-    context={
-        'teacher':teacher,
-        'students':students
-    }
+    # Retrieve the Employee linked to the logged-in User
+    employee = get_object_or_404(Employee, user=request.user)
+    
+    # Retrieve the Teacher instance for this Employee
+    teacher = get_object_or_404(Teacher, employee=employee)
+    
+    # Retrieve the Class_Teacher instance for this Teacher
+    class_teacher = get_object_or_404(Class_Teacher, Teacher=teacher)
+    
+    # Filter students based on the class and division assigned to the class teacher
+    students = Student.objects.filter(
+        class_teacher=class_teacher,
+        class_assigned=class_teacher.class_assigned,
+        division_assigned=class_teacher.division_assigned
+    )
 
+    context = {
+        'class_teacher': class_teacher,
+        'students': students
+    }
     return render(request, 'teacher/manage_students.html', context)
 
+@login_required
+def Add_Students(request):
+    class_teacher = Class_Teacher.objects.filter(Teacher__user_name=request.user.username).first()
+
+    if not class_teacher:
+        messages.error(request, "You are not assigned as a class teacher to any class.")
+        return redirect('teacher_dashboard')
+
+    if request.method == 'POST':
+        form = AddStudentForm(request.POST, class_teacher=class_teacher, school=class_teacher.school)
+        if form.is_valid():
+            student = form.save(commit=False)
+            student.school = class_teacher.school
+            student.class_teacher = class_teacher
+            student.class_assigned = class_teacher.class_assigned
+            student.division_assigned = class_teacher.division_assigned
+            student.save()
+            messages.success(request, f"Student {student.first_name} {student.last_name} added successfully.")
+            return redirect('add_students')
+    else:
+        form = AddStudentForm(class_teacher=class_teacher, school=class_teacher.school)
+
+    return render(request, 'teacher/manage_students/add_students.html', {'form': form})
 
 
 @login_required
 def Mark_Student_Attendance(request):
-    teacher = Class_Teacher.objects.get(user=request.user)
-    students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
-    
-    selected_date_str = request.POST.get('attendance_date', date.today().strftime('%Y-%m-%d'))
-    
+    # Get the employee associated with the current user
     try:
-        selected_date = date.fromisoformat(selected_date_str)
-    except ValueError:
+        employee = Employee.objects.get(user=request.user)
+    except Employee.DoesNotExist:
         return render(request, 'teacher/manage_students/mark_student_attendance.html', {
-            'students': students,
-            'attendance_date': date.today(),
-            'error_message': 'Invalid date format. Please use YYYY-MM-DD.'
+            'error_message': 'No employee record found for the current user.'
+        })
+    
+    # Get the class teacher associated with this employee
+    try:
+        class_teacher = Class_Teacher.objects.get(Teacher__employee=employee)
+    except Class_Teacher.DoesNotExist:
+        return render(request, 'teacher/manage_students/mark_student_attendance.html', {
+            'error_message': 'No class teacher record found for the current employee.'
         })
 
+    # Filter students based on the class teacher's assigned class, division, and school
+    students = Student.objects.filter(
+        school=class_teacher.school,  # Filter by the teacher's school
+        class_assigned=class_teacher.class_assigned,
+        division_assigned=class_teacher.division_assigned
+    )
+    
     if request.method == "POST":
+        selected_date_str = request.POST.get('attendance_date', date.today().strftime('%Y-%m-%d'))
+        
+        try:
+            selected_date = date.fromisoformat(selected_date_str)
+        except ValueError:
+            return render(request, 'teacher/manage_students/mark_student_attendance.html', {
+                'students': students,
+                'attendance_date': date.today(),
+                'error_message': 'Invalid date format. Please use YYYY-MM-DD.'
+            })
+        
+        # Process attendance
         for student in students:
-            is_absent = request.POST.get(f"absent_{student.id}", False) == 'on'
-            if is_absent:
+            status = request.POST.get(f"status_{student.id}", None)
+            if status == 'absent':
                 Attendance.objects.update_or_create(
                     student=student,
                     date=selected_date,
@@ -256,9 +318,16 @@ def Mark_Student_Attendance(request):
                 )
             else:
                 Attendance.objects.filter(student=student, date=selected_date).delete()
+        
         return redirect('manage_students')
     
     # Check which students are marked as absent
+    selected_date_str = request.GET.get('attendance_date', date.today().strftime('%Y-%m-%d'))
+    try:
+        selected_date = date.fromisoformat(selected_date_str)
+    except ValueError:
+        selected_date = date.today()
+
     absent_students = Attendance.objects.filter(date=selected_date).values_list('student_id', flat=True)
     context = {
         'students': students,
@@ -269,10 +338,31 @@ def Mark_Student_Attendance(request):
 
 
 @login_required
-def Attendance_Report(request):
-    teacher = Class_Teacher.objects.get(user=request.user)
-    students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
+def View_Attendance_Report(request):
+    # Get the employee associated with the current user
+    try:
+        employee = Employee.objects.get(user=request.user)
+    except Employee.DoesNotExist:
+        return render(request, 'teacher/manage_students/attendance_report.html', {
+            'error_message': 'No employee record found for the current user.'
+        })
     
+    # Get the class teacher associated with this employee
+    try:
+        class_teacher = Class_Teacher.objects.get(Teacher__employee=employee)
+    except Class_Teacher.DoesNotExist:
+        return render(request, 'teacher/manage_students/attendance_report.html', {
+            'error_message': 'No class teacher record found for the current employee.'
+        })
+
+    # Get the students assigned to the class teacher
+    students = Student.objects.filter(
+        class_assigned=class_teacher.class_assigned,
+        division_assigned=class_teacher.division_assigned,
+        school=class_teacher.school
+    )
+    
+    # Get the date range from the request or default to today's date
     start_date_str = request.GET.get('start_date', date.today().strftime('%Y-%m-%d'))
     end_date_str = request.GET.get('end_date', date.today().strftime('%Y-%m-%d'))
 
@@ -287,6 +377,7 @@ def Attendance_Report(request):
 
     attendance_data = {}
 
+    # Iterate over each student and gather their attendance data for the date range
     for student in students:
         student_attendance = []
         for n in range((end_date - start_date).days + 1):
@@ -297,7 +388,7 @@ def Attendance_Report(request):
             # Skip Sundays in the attendance report
             if not is_sunday:
                 attendance_record = Attendance.objects.filter(student=student, date=single_date).first()
-                if attendance_record:
+                if attendance_record and not attendance_record.is_present:
                     status = 'Absent'
                 else:
                     status = 'Present'
@@ -316,65 +407,23 @@ def Attendance_Report(request):
     }
     return render(request, 'teacher/manage_students/attendance_report.html', context)
 
-@login_required
-def Select_Date(request):
-    if request.method == 'POST':
-        selected_date = request.POST.get('attendance_date')
-        if selected_date:
-            return redirect(f'/teacher/manage-students/edit-attendance/?attendance_date={selected_date}')
-    
-    context = {
-        'today': date.today(),
-    }
-    return render(request, 'teacher/manage_students/select_date.html', context)
-
-
 
 @login_required
-def Edit_Attendance(request):
-    teacher = get_object_or_404(Class_Teacher, user=request.user)
-    students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
-    
-    selected_date_str = request.GET.get('attendance_date', date.today().strftime('%Y-%m-%d'))
-
+def Download_Attendance_Report_PDF(request):
     try:
-        selected_date = date.fromisoformat(selected_date_str)
-    except ValueError:
-        return render(request, 'teacher/manage_students/edit_attendance.html', {
-            'students': students,
-            'attendance_date': date.today(),
-            'error_message': 'Invalid date format. Please use YYYY-MM-DD.'
+        employee = Employee.objects.get(user=request.user)
+    except Employee.DoesNotExist:
+        return render(request, 'teacher/manage_students/attendance_report.html', {
+            'error_message': 'No employee record found for the current user.'
         })
     
-    if request.method == "POST":
-        for student in students:
-            is_absent = request.POST.get(f"absent_{student.id}", False) == 'on'
-            if is_absent:
-                Attendance.objects.update_or_create(
-                    student=student,
-                    date=selected_date,
-                    defaults={'is_present': False}
-                )
-            else:
-                Attendance.objects.filter(student=student, date=selected_date).delete()
-        return redirect('manage_students')
-    
-    # Pre-select absent students based on the selected date
-    absent_students = Attendance.objects.filter(date=selected_date, is_present=False).values_list('student_id', flat=True)
-    
-    context = {
-        'students': students,
-        'attendance_date': selected_date_str,
-        'absent_students': absent_students,
-    }
-    return render(request, 'teacher/manage_students/edit_attendance.html', context)
+    try:
+        class_teacher = Class_Teacher.objects.get(Teacher__employee=employee)
+    except Class_Teacher.DoesNotExist:
+        return render(request, 'teacher/manage_students/attendance_report.html', {
+            'error_message': 'No class teacher record found for the current employee.'
+        })
 
-
-@login_required
-def Download_Attendance_Report(request):
-    teacher = Class_Teacher.objects.get(user=request.user)
-    students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
-    
     start_date_str = request.GET.get('start_date', date.today().strftime('%Y-%m-%d'))
     end_date_str = request.GET.get('end_date', date.today().strftime('%Y-%m-%d'))
 
@@ -382,48 +431,47 @@ def Download_Attendance_Report(request):
         start_date = date.fromisoformat(start_date_str)
         end_date = date.fromisoformat(end_date_str)
     except ValueError:
-        return HttpResponse("Invalid date format. Please use YYYY-MM-DD.")
-    
-    attendance_data = {}
+        return render(request, 'teacher/manage_students/attendance_report.html', {
+            'error_message': 'Invalid date format. Please use YYYY-MM-DD.'
+        })
 
+    dates = [start_date + timedelta(n) for n in range((end_date - start_date).days + 1)]
+
+    students = Student.objects.filter(
+        school=class_teacher.school,
+        class_assigned=class_teacher.class_assigned,
+        division_assigned=class_teacher.division_assigned
+    )
+
+    attendance_data = {}
     for student in students:
         student_attendance = []
-        for n in range((end_date - start_date).days + 1):
-            single_date = start_date + timedelta(n)
-            formatted_date = single_date.strftime('%d/%m/%Y')
-            attendance_record = Attendance.objects.filter(student=student, date=single_date).first()
-            if attendance_record:
-                student_attendance.append({'date': formatted_date, 'status': 'Absent'})
-            else:
-                student_attendance.append({'date': formatted_date, 'status': 'Present'})
-        
+        for single_date in dates:
+            formatted_date = single_date.strftime('%Y-%m-%d')
+            is_absent = Attendance.objects.filter(student=student, date=single_date).exists()
+            student_attendance.append({
+                'date': formatted_date,
+                'status': 'Absent' if is_absent else 'Present'
+            })
         attendance_data[student] = student_attendance
 
-    # Convert the dictionary to a list of tuples for template compatibility
-    attendance_list = [(student, attendance) for student, attendance in attendance_data.items()]
-
-    # Paginate data
-    paginator = Paginator(attendance_list, 10)  # 10 items per page
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-
+    # Debugging: Print the rendered HTML
+    template_path = 'teacher/manage_students/attendance_report_pdf.html'
     context = {
-        'students': students,
-        'attendance_list': page_obj,
+        'class_teacher': class_teacher,
+        'attendance_data': attendance_data,
         'start_date': start_date_str,
         'end_date': end_date_str,
+        'dates': dates,
     }
-    
+    html = get_template(template_path).render(context)
+    print("Rendered HTML:")
+    print(html)
+
     response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = 'attachment; filename="attendance_report.pdf"'
-    
-    # Render the HTML template
-    html = render_to_string('teacher/manage_students/attendance_report_pdf.html', context)
-    
-    # Generate PDF
-    pisa_status = pisa.CreatePDF(BytesIO(html.encode('utf-8')), dest=response)
+    response['Content-Disposition'] = f'attachment; filename="attendance_report_{start_date_str}_to_{end_date_str}.pdf"'
+    pisa_status = pisa.CreatePDF(html, dest=response)
     
     if pisa_status.err:
-        return HttpResponse('Error generating PDF')
-
+        return HttpResponse('We had some errors <pre>' + html + '</pre>')
     return response

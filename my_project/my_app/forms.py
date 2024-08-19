@@ -78,18 +78,65 @@ class AssignClassTeacherForm(forms.ModelForm):
         self.fields['last_name'].widget.attrs['readonly'] = True
         self.fields['Teacher'].widget.attrs['class'] = 'form-control'
 
+        # Store the school for use in the save method
+        self.school = school
+
     def clean(self):
         cleaned_data = super().clean()
         teacher = cleaned_data.get('Teacher')
         class_assigned = cleaned_data.get('class_assigned')
         division_assigned = cleaned_data.get('division_assigned')
-        school = self.instance.school
-
+        
         if teacher:
             # Check if the teacher is already a class teacher
             if Class_Teacher.objects.filter(Teacher=teacher).exists() or teacher.is_class_teacher:
                 self.add_error('Teacher', 'This teacher is already a class teacher.')
 
             # Check if another teacher is already assigned to this class and division in the same school
-            if Class_Teacher.objects.filter(school=school, class_assigned=class_assigned, division_assigned=division_assigned).exists():
+            if Class_Teacher.objects.filter(school=self.school, class_assigned=class_assigned, division_assigned=division_assigned).exists():
                 self.add_error(None, 'A teacher is already assigned to this class and division in this school.')
+
+    def save(self, commit=True):
+        class_teacher = super().save(commit=False)
+        teacher = self.cleaned_data.get('Teacher')
+        
+        # Set the school before saving the instance
+        class_teacher.school = self.school
+        
+        # Save the username of the teacher
+        class_teacher.user_name = teacher.user_name
+        class_teacher.first_name = teacher.first_name
+        class_teacher.last_name = teacher.last_name
+        
+        if commit:
+            class_teacher.save()
+        return class_teacher
+    
+
+class AddStudentForm(forms.ModelForm):
+    warden = forms.ModelChoiceField(
+        queryset=Warden.objects.none(),  # This will be updated in the view
+        required=False,  # Allow this field to be empty
+        empty_label="Not a hosteler"
+    )
+    
+    class Meta:
+        model = Student
+        fields = ['first_name', 'last_name','gender', 'admission_number', 'roll_number', 'parents_number', 'class_assigned', 'division_assigned', 'warden']
+
+    def __init__(self, *args, **kwargs):
+        class_teacher = kwargs.pop('class_teacher', None)
+        school = kwargs.pop('school', None)
+        super(AddStudentForm, self).__init__(*args, **kwargs)
+
+        if class_teacher:
+            # Prefill the class_assigned and division_assigned fields
+            self.fields['class_assigned'].initial = class_teacher.class_assigned
+            self.fields['division_assigned'].initial = class_teacher.division_assigned
+        if school:
+            # Filter wardens by school
+            self.fields['warden'].queryset = Warden.objects.filter(school=school)
+
+        # Disable the fields to prevent changes
+        self.fields['class_assigned'].widget.attrs['readonly'] = True
+        self.fields['division_assigned'].widget.attrs['readonly'] = True

@@ -4,5 +4,10 @@
     <h1>Teacher Dashboard</h1>
     <p>Welcome, {{ first_name }} {{ last_name }}!</p>
 
-    <a href="{% url 'manage_students' %}">Manage Students</a>
+    {% if is_class_teacher %}
+        <p>You are assigned as class teacher for {{ assigned_class.class_assigned }} - {{ assigned_class.division_assigned }}.</p>
+        <a href="{% url 'manage_students' %}">Manage Students</a>
+    {% else %}
+        <p>You are not assigned as class teacher to any class yet.</p>
+    {% endif %}
 {% endblock %}

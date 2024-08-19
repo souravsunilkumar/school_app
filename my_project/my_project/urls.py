@@ -32,13 +32,10 @@ urlpatterns = [
     path('employee-registration/', views.Employee_Reg, name='employee_registration'),
     path('assign-class_teacher/', views.Assign_Class_Teacher, name='assign_class_teacher'),
     path('teacher/dashboard/', views.Teacher_Dashboard, name='teacher_dashboard'),
-    path('parent/dashboard/', views.Parent_Dashboard, name='parent_dashboard'),
     path('teacher/manage-students/', views.Manage_Students, name='manage_students'),
-    path('teacher/manage-students/mark-attendance', views.Mark_Student_Attendance, name='mark_attendance'),
-    path('teacher/manage-students/attendance-report', views.Attendance_Report, name='attendance_report'),
-    path('teacher/manage-students/select-date', views.Select_Date, name='select_date'),
-    path('teacher/manage-students/edit-attendance/', views.Edit_Attendance, name='edit_attendance'),
-    path('teacher/manage-students/download-attendance-report/', views.Download_Attendance_Report, name='download_attendance_report'),
-
-
+    path('teacher/add-students/', views.Add_Students, name='add_students'),
+    path('teacher/mark-students-attendance/', views.Mark_Student_Attendance, name='mark_attendance'),
+    path('teacher/view-attedance-report/', views.View_Attendance_Report, name='view_attendance'),
+    path('download_attendance_report_pdf/', views.Download_Attendance_Report_PDF, name='download_attendance_report_pdf'),
+    
 ]

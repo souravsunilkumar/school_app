@@ -15,25 +15,30 @@
 </form>
 
 {% if attendance_list %}
-    <a href="{% url 'download_attendance_report' %}?start_date={{ start_date }}&end_date={{ end_date }}&page=1" target="_blank">Download PDF Report</a>
-    <table border="1">
-        <tr>
-            <th>Student</th>
-            {% for single_date in attendance_list.0.1 %}
-                <th>{{ single_date.date }}</th>
-            {% endfor %}
-        </tr>
-        {% for student, attendance in attendance_list %}
-        <tr>
-            <td>{{ student.first_name }} {{ student.last_name }}</td>
-            {% for record in attendance %}
-                <td {% if record.is_sunday %} style="background-color: lightgray;" {% endif %} {% if record.status == 'Absent' %} style="color: red;" {% endif %}>
-                    {{ record.status }}
-                </td>
-            {% endfor %}
-        </tr>
-        {% endfor %}
-    </table>
+    <div style="overflow-x: auto; margin-top: 20px;">
+        <table border="1" style="border-collapse: collapse; width: 100%; min-width: 1200px;">
+            <thead>
+                <tr>
+                    <th style="min-width: 150px;">Student</th>
+                    {% for single_date in attendance_list.0.1 %}
+                        <th style="min-width: 60px;">{{ single_date.date }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for student, attendance in attendance_list %}
+                <tr>
+                    <td>{{ student.first_name }} {{ student.last_name }}</td>
+                    {% for record in attendance %}
+                        <td style="background-color: {% if record.status == 'Present' %} lightgreen {% else %} lightcoral {% endif %};">
+                            {{ record.status }}
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 {% else %}
     <p>No attendance records found for the selected dates.</p>
 {% endif %}
@@ -41,6 +46,10 @@
 {% if error_message %}
 <p style="color: red;">{{ error_message }}</p>
 {% endif %}
+
+<a href="{% url 'download_attendance_report_pdf' %}?start_date={{ start_date }}&end_date={{ end_date }}">
+    <button>Download PDF Report</button>
+</a>
 
 <script>
 function validateDates() {

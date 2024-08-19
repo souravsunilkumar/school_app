@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Assign Class Teacher</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.as_p }}
+    <button type="submit">Assign</button>
+</form>
+
+<!-- JavaScript to auto-fill teacher details -->
+<script>
+$(document).ready(function() {
+    $('#id_Teacher').select2({
+        placeholder: 'Select a Teacher',
+        allowClear: true
+    });
+
+    $('#id_Teacher').on('select2:select', function (e) {
+        var selectedTeacher = e.params.data.text;
+        var names = selectedTeacher.split(" - ")[0].split(" ");
+        $('#id_first_name').val(names[0]);
+        $('#id_last_name').val(names.slice(1).join(" "));
+    });
+});
+</script>
+{% endblock %}

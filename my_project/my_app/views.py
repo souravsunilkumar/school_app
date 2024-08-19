@@ -89,55 +89,114 @@ def School_Admin_Reg(request):
     return render(request, 'school_admin_register.html')
 
 
-@login_required
-def Teacher_Reg(request):
-    # Get the logged-in user's username
-    logged_in_username = request.user.username
-
-    # Check if there's a school with the same admin username
-    try:
-        school = School.objects.get(school_admin_username=logged_in_username)
-        initial_school_name = school.school_name
-    except School.DoesNotExist:
-        initial_school_name = None
-
-    if request.method == 'POST':
-        form = TeacherRegistrationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-
-            teacher_group = Group.objects.get(name='teacher')
-            user.groups.add(teacher_group)
-
-            class_assigned = form.cleaned_data.get('class_assigned')
-            division_assigned = form.cleaned_data.get('division_assigned')
-            school_name = form.cleaned_data.get('school')
-
-            print("Cleaned Data:", form.cleaned_data)
-            print("School Name:", school_name)
-
-            # Find or create the School object based on the provided name
-            school, created = School.objects.get_or_create(school_name=school_name)
-
-            Teacher_Model.objects.create(
-                user=user,
-                school=school,
-                class_assigned=class_assigned,
-                division_assigned=division_assigned
-            )
-
-            return redirect('admin_dashboard')
-        else:
-            print("Form Errors:", form.errors)
-    else:
-        # Pass the initial value to the form if the school was found
-        form = TeacherRegistrationForm(initial={'school': initial_school_name})
-
-    return render(request, 'teacher_register.html', {'form': form})
 
 @login_required
 def Admin_Dashboard(request):
     return render(request, 'administrator/admin_dashboard.html')
+
+@login_required
+def Employee_Reg(request):
+    if request.method == 'POST':
+        form = EmployeeRegistrationForm(request.POST, request=request)
+        if form.is_valid():
+            # Create User object
+            user = User.objects.create_user(
+                username=form.cleaned_data['username'],
+                password=form.cleaned_data['password'],
+                first_name=form.cleaned_data['first_name'],
+                last_name=form.cleaned_data['second_name'],
+            )
+            
+            # Assign user to the appropriate group based on designation
+            designation = form.cleaned_data['designation']
+            group_id_mapping = {
+                'Teacher': 1,
+                'Warden': 5,
+                'Peon': 6,
+                'Security': 7,
+                'Office Staff': 8,
+            }
+            group = Group.objects.get(id=group_id_mapping[designation])
+            user.groups.add(group)
+
+            # Create Employee object with the user linked
+            employee = Employee.objects.create(
+                school=form.cleaned_data['school'],
+                user=user,  # Linking the user to the employee
+                first_name=form.cleaned_data['first_name'],
+                second_name=form.cleaned_data['second_name'],
+                contact_number=form.cleaned_data['contact_number'],
+                designation=form.cleaned_data['designation'],
+            )
+
+            # If the designation is Teacher, create an entry in the Teacher model
+            if designation == 'Teacher':
+                Teacher.objects.create(
+                    school=form.cleaned_data['school'],
+                    employee=employee,
+                    first_name=form.cleaned_data['first_name'],
+                    last_name=form.cleaned_data['second_name'],
+                    contact_number=form.cleaned_data['contact_number'],
+                )
+
+            # If the designation is Warden, create an entry in the Warden model
+            elif designation == 'Warden':
+                Warden.objects.create(
+                    school=form.cleaned_data['school'],
+                    employee=employee,
+                    first_name=form.cleaned_data['first_name'],
+                    last_name=form.cleaned_data['second_name'],
+                    contact_number=form.cleaned_data['contact_number'],
+                )
+
+            # Add a success message
+            messages.success(request, f"{designation} employee registered successfully!")
+
+            return redirect('employee_registration')  # Redirect after successful registration
+    else:
+        form = EmployeeRegistrationForm(request=request)
+
+    return render(request, 'administrator/employee_registration.html', {'form': form})
+
+
+@login_required
+def Assign_Class_Teacher(request):
+    # Get the school of the logged-in school admin
+    school = get_object_or_404(School, school_admin_username=request.user.username)
+
+    if request.method == 'POST':
+        form = AssignClassTeacherForm(request.POST, school=school)
+        if form.is_valid():
+            teacher = form.cleaned_data['Teacher']
+            class_assigned = form.cleaned_data['class_assigned']
+            division_assigned = form.cleaned_data['division_assigned']
+
+            # Check if the teacher is already a class teacher
+            if Class_Teacher.objects.filter(Teacher=teacher).exists() or teacher.is_class_teacher:
+                form.add_error('Teacher', 'This teacher is already a class teacher.')
+            else:
+                # Check if another teacher is already assigned to this class and division in the same school
+                if Class_Teacher.objects.filter(school=school, class_assigned=class_assigned, division_assigned=division_assigned).exists():
+                    form.add_error(None, 'A teacher is already assigned to this class and division in this school.')
+                else:
+                    # Save the Class_Teacher object
+                    class_teacher = form.save(commit=False)
+                    class_teacher.school = school  # Set the school to the admin's school
+                    class_teacher.user = request.user  # Set the user to the logged-in user
+                    class_teacher.save()
+
+                    # Update the teacher's is_class_teacher field
+                    teacher.is_class_teacher = True
+                    teacher.save()
+
+                    # Add a success message and redirect
+                    messages.success(request, f"{teacher.first_name} {teacher.last_name} has been assigned as a Class Teacher.")
+                    return redirect('assign_class_teacher')  # Redirect after successful assignment
+    else:
+        form = AssignClassTeacherForm(school=school)
+
+    return render(request, 'administrator/assign_class_teacher.html', {'form': form})
+
 
 def Role(request):
     if request.method == "POST":
@@ -159,7 +218,7 @@ def Parent_Dashboard(request):
 
 @login_required
 def Manage_Students(request):
-    teacher = Teacher_Model.objects.get(user=request.user)
+    teacher = Class_Teacher.objects.get(user=request.user)
     students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
     context={
         'teacher':teacher,
@@ -169,30 +228,10 @@ def Manage_Students(request):
     return render(request, 'teacher/manage_students.html', context)
 
 
-@login_required
-def Add_student(request):
-    teacher = Teacher_Model.objects.get(user=request.user)
-    
-    if request.method == "POST":
-        form = StudentForm(request.POST, teacher=teacher)
-        if form.is_valid():
-            student = form.save(commit=False)
-            student.teacher = teacher
-            student.save()
-            messages.success(request, 'Student added successfully!')
-            return redirect('add_student')  
-    else:
-        form = StudentForm(teacher=teacher, initial={
-            'class_assigned': teacher.class_assigned,
-            'division_assigned': teacher.division_assigned,
-            'school': teacher.school
-        })
-
-    return render(request, 'teacher/manage_students/add_student.html', {'form': form})
 
 @login_required
 def Mark_Student_Attendance(request):
-    teacher = Teacher_Model.objects.get(user=request.user)
+    teacher = Class_Teacher.objects.get(user=request.user)
     students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
     
     selected_date_str = request.POST.get('attendance_date', date.today().strftime('%Y-%m-%d'))
@@ -231,7 +270,7 @@ def Mark_Student_Attendance(request):
 
 @login_required
 def Attendance_Report(request):
-    teacher = Teacher_Model.objects.get(user=request.user)
+    teacher = Class_Teacher.objects.get(user=request.user)
     students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
     
     start_date_str = request.GET.get('start_date', date.today().strftime('%Y-%m-%d'))
@@ -293,7 +332,7 @@ def Select_Date(request):
 
 @login_required
 def Edit_Attendance(request):
-    teacher = get_object_or_404(Teacher_Model, user=request.user)
+    teacher = get_object_or_404(Class_Teacher, user=request.user)
     students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
     
     selected_date_str = request.GET.get('attendance_date', date.today().strftime('%Y-%m-%d'))
@@ -333,7 +372,7 @@ def Edit_Attendance(request):
 
 @login_required
 def Download_Attendance_Report(request):
-    teacher = Teacher_Model.objects.get(user=request.user)
+    teacher = Class_Teacher.objects.get(user=request.user)
     students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
     
     start_date_str = request.GET.get('start_date', date.today().strftime('%Y-%m-%d'))

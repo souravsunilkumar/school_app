@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Add/Update Marks of Students</h1>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" name="create_exam">Create New Exam</button>
+    <button type="submit" name="use_existing_exam">Use Existing Exam</button>
+</form>
+
+{% endblock %}

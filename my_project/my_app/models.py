@@ -117,6 +117,44 @@ class Attendance(models.Model):
         return f"{self.student} - {'Absent' if not self.is_present else 'Present'} on {self.date}"
     
 
+class Exam(models.Model):
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
+    user_name = models.CharField(max_length=255)
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    class_assigned = models.CharField(max_length=20)
+    division_assigned = models.CharField(max_length=10)
+    exam_name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.exam_name} - {self.class_assigned} {self.division_assigned} - {self.school}"
+
+class Subject(models.Model):
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
+    user_name = models.CharField(max_length=255)
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
+    class_assigned = models.CharField(max_length=20)
+    division_assigned = models.CharField(max_length=10)
+    subject_name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.subject_name} - {self.exam} - {self.school}"
+
+class Marks(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
+    class_assigned = models.CharField(max_length=20)
+    division_assigned = models.CharField(max_length=10)
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
+    marks_obtained = models.CharField(max_length=10, null=True, blank=True)
+    out_of = models.CharField(max_length=10, null=True, blank=True)
+    date_uploaded = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student} - {self.subject} - {self.exam} - {self.marks_obtained}/{self.out_of}"
+
 
 class Hostel_Attendance(models.Model):
     id = models.AutoField(primary_key=True)  # Explicit id field

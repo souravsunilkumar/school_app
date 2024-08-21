@@ -475,3 +475,167 @@ def Download_Attendance_Report_PDF(request):
     if pisa_status.err:
         return HttpResponse('We had some errors <pre>' + html + '</pre>')
     return response
+
+@login_required
+def Select_Date(request):
+    if request.method == 'POST':
+        selected_date = request.POST.get('attendance_date')
+        if selected_date:
+            return redirect(f'/teacher/manage-students/edit-attendance/?attendance_date={selected_date}')
+    
+    context = {
+        'today': date.today(),
+    }
+    return render(request, 'teacher/manage_students/select_date.html', context)
+
+@login_required
+def Edit_Attendance(request):
+    # Use user_name to get the Class_Teacher instance
+    teacher = get_object_or_404(Class_Teacher, user_name=request.user.username)
+    students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
+    
+    selected_date_str = request.GET.get('attendance_date', date.today().strftime('%Y-%m-%d'))
+
+    try:
+        selected_date = date.fromisoformat(selected_date_str)
+    except ValueError:
+        return render(request, 'teacher/manage_students/edit_attendance.html', {
+            'students': students,
+            'attendance_date': date.today(),
+            'error_message': 'Invalid date format. Please use YYYY-MM-DD.'
+        })
+    
+    if request.method == "POST":
+        for student in students:
+            is_absent = request.POST.get(f"absent_{student.id}", False) == 'on'
+            if is_absent:
+                Attendance.objects.update_or_create(
+                    student=student,
+                    date=selected_date,
+                    defaults={'is_present': False}
+                )
+            else:
+                Attendance.objects.filter(student=student, date=selected_date).delete()
+        return redirect('manage_students')
+    
+    # Pre-select absent students based on the selected date
+    absent_students = Attendance.objects.filter(date=selected_date, is_present=False).values_list('student_id', flat=True)
+    
+    context = {
+        'students': students,
+        'attendance_date': selected_date_str,
+        'absent_students': absent_students,
+    }
+    return render(request, 'teacher/manage_students/edit_attendance.html', context)
+
+@login_required
+def add_update_marks(request):
+    teacher = get_object_or_404(Teacher, user_name=request.user.username)
+    if request.method == 'POST':
+        if 'create_exam' in request.POST:
+            return redirect('create_exam')
+        elif 'use_existing_exam' in request.POST:
+            return redirect('select_existing_exam')
+    return render(request, 'teacher/manage_students/add_update_marks.html')
+
+@login_required
+def create_exam(request):
+    if request.method == 'POST':
+        exam_form = ExamForm(request.POST)
+        if exam_form.is_valid():
+            exam = exam_form.save(commit=False)
+            teacher = Teacher.objects.get(employee__user=request.user)
+            class_teacher = Class_Teacher.objects.filter(Teacher=teacher).first()
+
+            if class_teacher:
+                exam.teacher = teacher
+                exam.school = teacher.school
+                exam.class_assigned = class_teacher.class_assigned
+                exam.division_assigned = class_teacher.division_assigned
+                exam.user_name = request.user.username  # Save the logged-in teacher's username
+                exam.save()
+                return redirect('add_subjects', exam_id=exam.id)
+            else:
+                # Handle case where class_teacher is not found
+                return redirect('error_page')  # Replace with your actual error handling
+    else:
+        exam_form = ExamForm()
+
+    return render(request, 'teacher/manage_students/create_exam.html', {'exam_form': exam_form})
+
+
+@login_required
+def add_subjects(request, exam_id):
+    exam = Exam.objects.get(id=exam_id)
+    if request.method == 'POST':
+        subject_form = SubjectForm(request.POST)
+        if subject_form.is_valid():
+            subject = subject_form.save(commit=False)
+            teacher = Teacher.objects.get(employee__user=request.user)
+            class_teacher = Class_Teacher.objects.filter(Teacher=teacher).first()
+
+            if class_teacher:
+                subject.exam = exam
+                subject.teacher = teacher
+                subject.school = exam.school
+                subject.class_assigned = class_teacher.class_assigned
+                subject.division_assigned = class_teacher.division_assigned
+                subject.user_name = request.user.username  # Save the logged-in teacher's username
+                subject.save()
+                
+                # Create a success message with the subject name
+                messages.success(request, f"Subject '{subject.subject_name}' added successfully.")
+                return redirect('add_subjects', exam_id=exam.id)
+    else:
+        subject_form = SubjectForm()
+
+    return render(request, 'teacher/manage_students/add_subjects.html', {'subject_form': subject_form, 'exam': exam})
+
+@login_required
+def enter_marks(request, exam_id):
+    exam = get_object_or_404(Exam, id=exam_id)
+    teacher = exam.teacher
+    students = Student.objects.filter(
+        class_assigned=exam.class_assigned,
+        division_assigned=exam.division_assigned,
+        school=teacher.school
+    )
+    subjects = Subject.objects.filter(exam=exam)
+
+    if request.method == 'POST':
+        # Handle "out of" marks update for each subject
+        for subject in subjects:
+            out_of = request.POST.get(f"set_out_of_{subject.id}", "")
+            if out_of:
+                # Update the "out of" marks for all students for this subject
+                Marks.objects.filter(
+                    exam=exam,
+                    subject=subject
+                ).update(out_of=out_of)
+        
+        # Handle individual student marks
+        for student in students:
+            for subject in subjects:
+                marks_obtained = request.POST.get(f"marks_obtained_{student.id}_{subject.id}", "")
+                out_of = request.POST.get(f"out_of_{student.id}_{subject.id}", "")
+                Marks.objects.update_or_create(
+                    school=teacher.school,
+                    teacher=teacher,
+                    class_assigned=exam.class_assigned,
+                    division_assigned=exam.division_assigned,
+                    exam=exam,
+                    student=student,
+                    subject=subject,
+                    defaults={
+                        'marks_obtained': marks_obtained if marks_obtained else '',
+                        'out_of': out_of if out_of else None,
+                    }
+                )
+        messages.success(request, 'Marks of students added successfully.')
+        return redirect('enter_marks', exam_id=exam.id)
+
+    return render(request, 'teacher/manage_students/enter_marks.html', {
+        'exam': exam,
+        'students': students,
+        'subjects': subjects,
+    })

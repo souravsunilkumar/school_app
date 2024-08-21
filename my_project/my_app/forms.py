@@ -140,3 +140,13 @@ class AddStudentForm(forms.ModelForm):
         # Disable the fields to prevent changes
         self.fields['class_assigned'].widget.attrs['readonly'] = True
         self.fields['division_assigned'].widget.attrs['readonly'] = True
+
+class ExamForm(forms.ModelForm):
+    class Meta:
+        model = Exam
+        fields = ['exam_name']
+
+class SubjectForm(forms.ModelForm):
+    class Meta:
+        model = Subject
+        fields = ['subject_name']

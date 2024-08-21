@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Add Subjects for {{ exam.exam_name }}</h1>
+
+{% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+            <li class="{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    {{ subject_form.as_p }}
+    <button type="submit">Add Subject</button>
+</form>
+
+<a href="{% url 'enter_marks' exam.id %}">Enter Marks</a>
+
+{% endblock %}

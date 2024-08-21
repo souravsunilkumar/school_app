@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Select Exam to View Marks</h1>
+
+<form method="post">
+    {% csrf_token %}
+    <label for="exam_id">Exam:</label>
+    <select name="exam_id" id="exam_id">
+        {% for exam in exams %}
+            <option value="{{ exam.id }}">{{ exam.exam_name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">View Marks</button>
+</form>
+
+<a href="{% url 'manage_students' %}">Back</a>
+{% endblock %}

@@ -45,5 +45,11 @@ urlpatterns = [
     path('create_exam/', views.create_exam, name='create_exam'),
     path('add_subjects/<int:exam_id>/', views.add_subjects, name='add_subjects'),
     path('enter_marks/<int:exam_id>/', views.enter_marks, name='enter_marks'),
+
+    path('select_existing_exam/', views.select_existing_exam, name='select_existing_exam'),
+    path('edit_marks/<int:exam_id>/', views.edit_marks, name='edit_marks'),
+
+    path('view_student_marks/', views.view_student_marks, name='view_student_marks'),
+
     
 ]

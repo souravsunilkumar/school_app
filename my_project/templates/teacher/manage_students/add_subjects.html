@@ -5,7 +5,9 @@
 {% if messages %}
     <ul class="messages">
         {% for message in messages %}
-            <li class="{{ message.tags }}">{{ message }}</li>
+            {% if "Subject" in message %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+            {% endif %}
         {% endfor %}
     </ul>
 {% endif %}
@@ -16,6 +18,10 @@
     <button type="submit">Add Subject</button>
 </form>
 
-<a href="{% url 'enter_marks' exam.id %}">Enter Marks</a>
+{% if from_edit_marks %}
+    <a href="{% url 'edit_marks' exam.id %}">Back</a>
+{% else %}
+    <a href="{% url 'enter_marks' exam.id %}">Enter Marks</a>
+{% endif %}
 
 {% endblock %}

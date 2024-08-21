@@ -100,6 +100,7 @@ class Student(models.Model):
     admission_number = models.CharField(max_length=20, null=True)
     roll_number = models.IntegerField(null=True)
     parents_number = models.CharField(max_length=15,null=True)
+    parents_email=models.EmailField(max_length=40,null=True)
     class_assigned = models.CharField(max_length=20)
     division_assigned = models.CharField(max_length=10)
 

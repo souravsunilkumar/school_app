@@ -16,7 +16,6 @@ from io import BytesIO
 from django.core.paginator import Paginator
 import logging
 
-
 logger = logging.getLogger(__name__)
 # Create your views here.
 
@@ -268,7 +267,6 @@ def Add_Students(request):
         form = AddStudentForm(class_teacher=class_teacher, school=class_teacher.school)
 
     return render(request, 'teacher/manage_students/add_students.html', {'form': form})
-
 
 @login_required
 def Mark_Student_Attendance(request):
@@ -564,9 +562,13 @@ def create_exam(request):
     return render(request, 'teacher/manage_students/create_exam.html', {'exam_form': exam_form})
 
 
+
+
 @login_required
 def add_subjects(request, exam_id):
     exam = Exam.objects.get(id=exam_id)
+    from_edit_marks = request.GET.get('from_edit_marks', 'false').lower() == 'true'
+
     if request.method == 'POST':
         subject_form = SubjectForm(request.POST)
         if subject_form.is_valid():
@@ -580,16 +582,22 @@ def add_subjects(request, exam_id):
                 subject.school = exam.school
                 subject.class_assigned = class_teacher.class_assigned
                 subject.division_assigned = class_teacher.division_assigned
-                subject.user_name = request.user.username  # Save the logged-in teacher's username
+                subject.user_name = request.user.username
                 subject.save()
-                
-                # Create a success message with the subject name
+
                 messages.success(request, f"Subject '{subject.subject_name}' added successfully.")
-                return redirect('add_subjects', exam_id=exam.id)
+                if from_edit_marks:
+                    return redirect('edit_marks', exam_id=exam.id)
+                else:
+                    return redirect('add_subjects', exam_id=exam.id)
     else:
         subject_form = SubjectForm()
 
-    return render(request, 'teacher/manage_students/add_subjects.html', {'subject_form': subject_form, 'exam': exam})
+    return render(request, 'teacher/manage_students/add_subjects.html', {
+        'subject_form': subject_form,
+        'exam': exam,
+        'from_edit_marks': from_edit_marks,
+    })
 
 @login_required
 def enter_marks(request, exam_id):
@@ -601,7 +609,20 @@ def enter_marks(request, exam_id):
         school=teacher.school
     )
     subjects = Subject.objects.filter(exam=exam)
-
+    
+    # Prepare a list to store marks information
+    marks_info = []
+    marks = Marks.objects.filter(exam=exam)
+    for student in students:
+        student_marks = {}
+        for subject in subjects:
+            mark = marks.filter(student=student, subject=subject).first()
+            student_marks[subject.id] = mark
+        marks_info.append({
+            'student': student,
+            'marks': student_marks
+        })
+    
     if request.method == 'POST':
         # Handle "out of" marks update for each subject
         for subject in subjects:
@@ -638,4 +659,143 @@ def enter_marks(request, exam_id):
         'exam': exam,
         'students': students,
         'subjects': subjects,
+        'marks_info': marks_info,
+    })
+
+@login_required
+def select_existing_exam(request):
+    # Get the User associated with the request
+    user = request.user
+
+    # Retrieve the Employee linked to this user
+    employee = get_object_or_404(Employee, user=user)
+
+    # Retrieve the Teacher linked to this Employee
+    teacher = get_object_or_404(Teacher, employee=employee)
+    
+    # Retrieve the Class_Teacher associated with this Teacher
+    class_teacher = get_object_or_404(Class_Teacher, Teacher=teacher)
+    
+    # Filter exams based on the Teacher's associated School, Class, and Division
+    exams = Exam.objects.filter(
+        school=teacher.school, 
+        class_assigned=class_teacher.class_assigned, 
+        division_assigned=class_teacher.division_assigned
+    )
+    
+    if request.method == 'POST':
+        exam_id = request.POST.get('exam')
+        return redirect('edit_marks', exam_id=exam_id)
+    
+    return render(request, 'teacher/manage_students/select_existing_exam.html', {
+        'exams': exams
+    })
+
+
+@login_required
+def edit_marks(request, exam_id):
+    exam = get_object_or_404(Exam, id=exam_id)
+    teacher = exam.teacher
+    students = Student.objects.filter(
+        class_assigned=exam.class_assigned,
+        division_assigned=exam.division_assigned,
+        school=teacher.school
+    )
+    subjects = Subject.objects.filter(exam=exam)
+    
+    if request.method == 'POST':
+        # Handle "out of" marks update for each subject
+        for subject in subjects:
+            out_of = request.POST.get(f"set_out_of_{subject.id}", "")
+            if out_of:
+                # Update the "out of" marks for all students for this subject
+                Marks.objects.filter(
+                    exam=exam,
+                    subject=subject
+                ).update(out_of=out_of)
+        
+        # Handle individual student marks
+        for student in students:
+            for subject in subjects:
+                marks_obtained = request.POST.get(f"marks_obtained_{student.id}_{subject.id}", "")
+                out_of = request.POST.get(f"out_of_{student.id}_{subject.id}", "")
+                Marks.objects.update_or_create(
+                    school=teacher.school,
+                    teacher=teacher,
+                    class_assigned=exam.class_assigned,
+                    division_assigned=exam.division_assigned,
+                    exam=exam,
+                    student=student,
+                    subject=subject,
+                    defaults={
+                        'marks_obtained': marks_obtained if marks_obtained else '',
+                        'out_of': out_of if out_of else None,
+                    }
+                )
+        messages.success(request, 'Marks updated successfully.')
+        return redirect('edit_marks', exam_id=exam.id)
+
+    marks_dict = {}
+    marks = Marks.objects.filter(exam=exam)
+    for mark in marks:
+        if mark.student.id not in marks_dict:
+            marks_dict[mark.student.id] = {}
+        marks_dict[mark.student.id][mark.subject.id] = mark
+
+    return render(request, 'teacher/manage_students/edit_marks.html', {
+        'exam': exam,
+        'students': students,
+        'subjects': subjects,
+        'marks_dict': marks_dict,
+    })
+
+@login_required
+def view_student_marks(request):
+    # Retrieve the logged-in user's Employee instance
+    employee = get_object_or_404(Employee, user=request.user)
+    
+    # Retrieve the Teacher instance linked to the Employee
+    teacher = get_object_or_404(Teacher, employee=employee)
+    
+    # Retrieve the Class_Teacher instance linked to the Teacher
+    class_teacher = get_object_or_404(Class_Teacher, Teacher=teacher)
+    
+    # Get exams related to the class and school of the teacher
+    exams = Exam.objects.filter(
+        class_assigned=class_teacher.class_assigned,
+        division_assigned=class_teacher.division_assigned,
+        school=class_teacher.school
+    )
+    
+    if request.method == 'POST':
+        exam_id = request.POST.get('exam_id')
+        selected_exam = get_object_or_404(Exam, id=exam_id)
+        
+        # Fetch students related to the selected exam
+        students = Student.objects.filter(
+            class_assigned=selected_exam.class_assigned,
+            division_assigned=selected_exam.division_assigned,
+            school=class_teacher.school
+        )
+        
+        # Fetch subjects related to the selected exam
+        subjects = Subject.objects.filter(exam=selected_exam)
+        
+        # Fetch marks for the selected exam
+        marks_dict = {}
+        marks = Marks.objects.filter(exam=selected_exam)
+        for mark in marks:
+            if mark.student.id not in marks_dict:
+                marks_dict[mark.student.id] = {}
+            marks_dict[mark.student.id][mark.subject.id] = mark
+        
+        return render(request, 'teacher/manage_students/view_marks_list.html', {
+            'exam': selected_exam,
+            'students': students,
+            'subjects': subjects,
+            'marks_dict': marks_dict,
+        })
+    
+    return render(request, 'teacher/manage_students/select_exam_for_marks.html', {
+        'exams': exams,
     })

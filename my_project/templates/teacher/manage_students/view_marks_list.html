@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+{% block content %}
+<h1>Marks for {{ exam.exam_name }}</h1>
+
+<table border="1">
+    <thead>
+        <tr>
+            <th>Student</th>
+            {% for subject in subjects %}
+                <th colspan="2">{{ subject.subject_name }}</th>
+            {% endfor %}
+        </tr>
+        <tr>
+            <th></th>
+            {% for subject in subjects %}
+                <th>Marks Obtained</th>
+                <th>Out of</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for student in students %}
+            <tr>
+                <td>{{ student.first_name }} {{ student.last_name }}</td>
+                {% for subject in subjects %}
+                    {% with marks=marks_dict|get_item:student.id|get_item:subject.id %}
+                        <td>{{ marks.marks_obtained }}</td>
+                        <td>{{ marks.out_of }}</td>
+                    {% endwith %}
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'manage_students' %}">Back</a>
+{% endblock %}

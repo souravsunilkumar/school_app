@@ -4,6 +4,7 @@ from django.contrib.auth.hashers import make_password
 from django.http import HttpResponse
 from django.template.loader import get_template
 from .models import *
+from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate, login
@@ -15,6 +16,8 @@ from xhtml2pdf import pisa
 from io import BytesIO
 from django.core.paginator import Paginator
 import logging
+from django.core.mail import send_mail
+
 
 logger = logging.getLogger(__name__)
 # Create your views here.
@@ -244,6 +247,8 @@ def Manage_Students(request):
     }
     return render(request, 'teacher/manage_students.html', context)
 
+
+
 @login_required
 def Add_Students(request):
     class_teacher = Class_Teacher.objects.filter(Teacher__user_name=request.user.username).first()
@@ -270,7 +275,6 @@ def Add_Students(request):
 
 @login_required
 def Mark_Student_Attendance(request):
-    # Get the employee associated with the current user
     try:
         employee = Employee.objects.get(user=request.user)
     except Employee.DoesNotExist:
@@ -278,7 +282,6 @@ def Mark_Student_Attendance(request):
             'error_message': 'No employee record found for the current user.'
         })
     
-    # Get the class teacher associated with this employee
     try:
         class_teacher = Class_Teacher.objects.get(Teacher__employee=employee)
     except Class_Teacher.DoesNotExist:
@@ -286,9 +289,8 @@ def Mark_Student_Attendance(request):
             'error_message': 'No class teacher record found for the current employee.'
         })
 
-    # Filter students based on the class teacher's assigned class, division, and school
     students = Student.objects.filter(
-        school=class_teacher.school,  # Filter by the teacher's school
+        school=class_teacher.school,
         class_assigned=class_teacher.class_assigned,
         division_assigned=class_teacher.division_assigned
     )
@@ -304,8 +306,7 @@ def Mark_Student_Attendance(request):
                 'attendance_date': date.today(),
                 'error_message': 'Invalid date format. Please use YYYY-MM-DD.'
             })
-        
-        # Process attendance
+
         for student in students:
             status = request.POST.get(f"status_{student.id}", None)
             if status == 'absent':
@@ -314,12 +315,20 @@ def Mark_Student_Attendance(request):
                     date=selected_date,
                     defaults={'is_present': False}
                 )
+                # Send email to parents if the student is marked absent
+                if student.parents_email:
+                    send_mail(
+                        subject='Student Attendance Alert',
+                        message=f'Dear Parent,\n\nYour student {student.first_name} {student.last_name} is marked absent today ({selected_date}).\n\nRegards,\nSchool Management',
+                        from_email='souravsunilkumar5@gmail.com',
+                        recipient_list=[student.parents_email],
+                        fail_silently=False,
+                    )
             else:
                 Attendance.objects.filter(student=student, date=selected_date).delete()
         
         return redirect('manage_students')
     
-    # Check which students are marked as absent
     selected_date_str = request.GET.get('attendance_date', date.today().strftime('%Y-%m-%d'))
     try:
         selected_date = date.fromisoformat(selected_date_str)
@@ -441,7 +450,8 @@ def Download_Attendance_Report_PDF(request):
         division_assigned=class_teacher.division_assigned
     )
 
-    attendance_data = {}
+    # Grouping data by month
+    monthly_attendance_data = {}
     for student in students:
         student_attendance = []
         for single_date in dates:
@@ -451,28 +461,34 @@ def Download_Attendance_Report_PDF(request):
                 'date': formatted_date,
                 'status': 'Absent' if is_absent else 'Present'
             })
-        attendance_data[student] = student_attendance
+        
+        # Group attendance by month
+        for record in student_attendance:
+            month_year = single_date.strftime('%B %Y')
+            if month_year not in monthly_attendance_data:
+                monthly_attendance_data[month_year] = {}
+            if student not in monthly_attendance_data[month_year]:
+                monthly_attendance_data[month_year][student] = []
+            monthly_attendance_data[month_year][student].append(record)
 
-    # Debugging: Print the rendered HTML
     template_path = 'teacher/manage_students/attendance_report_pdf.html'
     context = {
         'class_teacher': class_teacher,
-        'attendance_data': attendance_data,
+        'monthly_attendance_data': monthly_attendance_data,
         'start_date': start_date_str,
         'end_date': end_date_str,
         'dates': dates,
     }
     html = get_template(template_path).render(context)
-    print("Rendered HTML:")
-    print(html)
-
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="attendance_report_{start_date_str}_to_{end_date_str}.pdf"'
     pisa_status = pisa.CreatePDF(html, dest=response)
     
     if pisa_status.err:
         return HttpResponse('We had some errors <pre>' + html + '</pre>')
+
     return response
+
 
 @login_required
 def Select_Date(request):
@@ -488,9 +504,15 @@ def Select_Date(request):
 
 @login_required
 def Edit_Attendance(request):
-    # Use user_name to get the Class_Teacher instance
+    # Use request.user.username to get the Class_Teacher instance
     teacher = get_object_or_404(Class_Teacher, user_name=request.user.username)
-    students = Student.objects.filter(class_assigned=teacher.class_assigned, division_assigned=teacher.division_assigned)
+    
+    # Filter students by the teacher's assigned class, division, and school
+    students = Student.objects.filter(
+        school=teacher.school,  # Ensure the students are from the teacher's school
+        class_assigned=teacher.class_assigned,
+        division_assigned=teacher.division_assigned
+    )
     
     selected_date_str = request.GET.get('attendance_date', date.today().strftime('%Y-%m-%d'))
 
@@ -503,17 +525,50 @@ def Edit_Attendance(request):
             'error_message': 'Invalid date format. Please use YYYY-MM-DD.'
         })
     
+    is_today = (selected_date == date.today())
+    
     if request.method == "POST":
         for student in students:
             is_absent = request.POST.get(f"absent_{student.id}", False) == 'on'
+            existing_attendance = Attendance.objects.filter(student=student, date=selected_date).first()
+            
             if is_absent:
-                Attendance.objects.update_or_create(
-                    student=student,
-                    date=selected_date,
-                    defaults={'is_present': False}
-                )
+                if not existing_attendance or existing_attendance.is_present:  # Was previously present
+                    Attendance.objects.update_or_create(
+                        student=student,
+                        date=selected_date,
+                        defaults={'is_present': False}
+                    )
+                    # Send email if the student is marked absent
+                    message = (
+                        f'Dear Parent,\n\nYour student {student.first_name} {student.last_name} is marked absent today ({selected_date}).\n\nRegards,\nSchool Management'
+                        if is_today else
+                        f'Dear Parent,\n\nYour student {student.first_name} {student.last_name} was marked absent on {selected_date}.\n\nRegards,\nSchool Management'
+                    )
+                    send_mail(
+                        subject='Student Attendance Alert',
+                        message=message,
+                        from_email='souravsunilkumar5@gmail.com',
+                        recipient_list=[student.parents_email],
+                        fail_silently=False,
+                    )
             else:
-                Attendance.objects.filter(student=student, date=selected_date).delete()
+                if existing_attendance and not existing_attendance.is_present:  # Was previously absent
+                    # Send email if the absent student is now marked present (late)
+                    message = (
+                        f'Dear Parent,\n\nYour student {student.first_name} {student.last_name} was marked present today ({selected_date}).\n\nRegards,\nSchool Management'
+                        if is_today else
+                        f'Dear Parent,\n\nYour student {student.first_name} {student.last_name} was marked present on {selected_date}.\n\nRegards,\nSchool Management'
+                    )
+                    send_mail(
+                        subject='Student Attendance Alert',
+                        message=message,
+                        from_email='souravsunilkumar5@gmail.com',
+                        recipient_list=[student.parents_email],
+                        fail_silently=False,
+                    )
+                    existing_attendance.delete()
+        
         return redirect('manage_students')
     
     # Pre-select absent students based on the selected date
@@ -525,6 +580,7 @@ def Edit_Attendance(request):
         'absent_students': absent_students,
     }
     return render(request, 'teacher/manage_students/edit_attendance.html', context)
+
 
 @login_required
 def add_update_marks(request):

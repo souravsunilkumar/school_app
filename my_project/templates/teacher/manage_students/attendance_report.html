@@ -19,7 +19,7 @@
         <table border="1" style="border-collapse: collapse; width: 100%; min-width: 1200px;">
             <thead>
                 <tr>
-                    <th style="min-width: 150px;">Student</th>
+                    <th style="min-width: 150px; position: sticky; left: 0; background-color: #f9f9f9; z-index: 1;">Student</th>
                     {% for single_date in attendance_list.0.1 %}
                         <th style="min-width: 60px;">{{ single_date.date }}</th>
                     {% endfor %}
@@ -28,7 +28,7 @@
             <tbody>
                 {% for student, attendance in attendance_list %}
                 <tr>
-                    <td>{{ student.first_name }} {{ student.last_name }}</td>
+                    <td style="position: sticky; left: 0; background-color: #f9f9f9;">{{ student.first_name }} {{ student.last_name }}</td>
                     {% for record in attendance %}
                         <td style="background-color: {% if record.status == 'Present' %} lightgreen {% else %} lightcoral {% endif %};">
                             {{ record.status }}
@@ -77,3 +77,4 @@ function validateDates() {
 </script>
 
 {% endblock %}
+

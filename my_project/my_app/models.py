@@ -6,15 +6,27 @@ from datetime import date
 
 class School(models.Model):
     id = models.AutoField(primary_key=True)  # Explicit id field
-    school_name = models.CharField(max_length=255)
+    school_name = models.CharField(max_length=25)
     address = models.TextField()
     contact = models.CharField(max_length=15)
-    school_admin_first_name = models.CharField(max_length=255, null=True)
-    school_admin_last_name = models.CharField(max_length=255, null=True)
-    school_admin_username = models.CharField(max_length=255, null=True)  # New field
+    school_admin_first_name = models.CharField(max_length=25, null=True)
+    school_admin_last_name = models.CharField(max_length=25, null=True)
+    school_admin_username = models.CharField(max_length=25, null=True)  # New field
 
     def __str__(self):
         return self.school_name
+
+class Admin(models.Model):
+    id = models.AutoField(primary_key=True)
+    school = models.ForeignKey(School, on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=20)
+    second_name = models.CharField(max_length=20)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    username = models.CharField(max_length=20, unique=True)
+    contact_number = models.CharField(max_length=15, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.first_name} {self.second_name} - {self.school}"
 
 class Employee(models.Model):
     TEACHER = 'Teacher'
@@ -34,9 +46,9 @@ class Employee(models.Model):
     id = models.AutoField(primary_key=True)  # Explicit id field
     school = models.ForeignKey(School, on_delete=models.CASCADE)  # Foreign key to School model
     user = models.OneToOneField(User, on_delete=models.CASCADE)  # Foreign key to User model
-    user_name=models.CharField(max_length=255, null=True)
-    first_name = models.CharField(max_length=255)
-    second_name = models.CharField(max_length=255)
+    user_name=models.CharField(max_length=25, null=True)
+    first_name = models.CharField(max_length=25)
+    second_name = models.CharField(max_length=25)
     contact_number = models.CharField(max_length=15)
     designation = models.CharField(
         max_length=20,
@@ -52,9 +64,10 @@ class Teacher(models.Model):
     id = models.AutoField(primary_key=True)
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    user_name=models.CharField(max_length=255, null=True)
-    first_name = models.CharField(max_length=255)
-    last_name = models.CharField(max_length=255)
+    user = models.OneToOneField(User, on_delete=models.CASCADE,null=True)  # Link to User model
+    user_name = models.CharField(max_length=25, null=True)
+    first_name = models.CharField(max_length=25)
+    last_name = models.CharField(max_length=25)
     contact_number = models.CharField(max_length=15, null=True)
     is_class_teacher = models.BooleanField(default=False)  # New field
 
@@ -64,10 +77,11 @@ class Teacher(models.Model):
 
 class Class_Teacher(models.Model):
     id = models.AutoField(primary_key=True)
-    Teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, null=True)
-    user_name=models.CharField(max_length=255, null=True)
-    first_name = models.CharField(max_length=255)
-    last_name = models.CharField(max_length=255)
+    Teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, null=True)  # Ensure lowercase 'teacher'
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True)  # Link to User model
+    user_name = models.CharField(max_length=25, null=True)
+    first_name = models.CharField(max_length=25)
+    last_name = models.CharField(max_length=25)
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     class_assigned = models.CharField(max_length=20)
     division_assigned = models.CharField(max_length=10)
@@ -79,10 +93,11 @@ class Warden(models.Model):
     id = models.AutoField(primary_key=True)  # Explicit id field
     school = models.ForeignKey(School, on_delete=models.CASCADE)  # Link to School model
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)  # Link to Employee model
-    user_name=models.CharField(max_length=255, null=True)
-    first_name = models.CharField(max_length=255)
-    last_name = models.CharField(max_length=255)
-    contact_number = models.CharField(max_length=15,null=True)
+    user = models.OneToOneField(User, on_delete=models.CASCADE,null=True)  # Link to User model
+    user_name = models.CharField(max_length=20, null=True)
+    first_name = models.CharField(max_length=20)
+    last_name = models.CharField(max_length=20)
+    contact_number = models.CharField(max_length=15, null=True)
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} - Warden - {self.school}"
@@ -120,23 +135,23 @@ class Attendance(models.Model):
 
 class Exam(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
-    user_name = models.CharField(max_length=255)
+    user_name = models.CharField(max_length=20)
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     class_assigned = models.CharField(max_length=20)
     division_assigned = models.CharField(max_length=10)
-    exam_name = models.CharField(max_length=255)
+    exam_name = models.CharField(max_length=20)
 
     def __str__(self):
         return f"{self.exam_name} - {self.class_assigned} {self.division_assigned} - {self.school}"
 
 class Subject(models.Model):
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE)
-    user_name = models.CharField(max_length=255)
+    user_name = models.CharField(max_length=25)
     school = models.ForeignKey(School, on_delete=models.CASCADE)
     exam = models.ForeignKey(Exam, on_delete=models.CASCADE)
     class_assigned = models.CharField(max_length=20)
     division_assigned = models.CharField(max_length=10)
-    subject_name = models.CharField(max_length=255)
+    subject_name = models.CharField(max_length=25)
 
     def __str__(self):
         return f"{self.subject_name} - {self.exam} - {self.school}"
@@ -167,3 +182,4 @@ class Hostel_Attendance(models.Model):
 
     def __str__(self):
         return f"{self.student} - {'Absent' if not self.is_present else 'Present'} on {self.date}"
+    

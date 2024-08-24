@@ -2,5 +2,7 @@
 {% block content %}
 <h1>Admin dashboard</h1>
 <a href="{% url 'employee_registration' %}">Register Employee</a><br>
-<a href="{% url 'assign_class_teacher' %}">Assign Class Teacher</a>
+<a href="{% url 'assign_class_teacher' %}">Assign Class Teacher</a><br>
+<a href="{% url 'sub_admin_register' %}">Register Sub Admins</a><br>
+<a href="{% url 'view_all_sub_admins' %}">View all sub admin</a><br>
 {% endblock %}

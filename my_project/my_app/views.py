@@ -2,6 +2,7 @@ from django.shortcuts import render,redirect,get_object_or_404
 from django.template.loader import render_to_string
 from django.contrib.auth.hashers import make_password
 from django.http import HttpResponse
+from django.views.decorators.http import require_GET
 from django.template.loader import get_template
 from .models import *
 from django.http import JsonResponse
@@ -22,19 +23,26 @@ from django.core.mail import send_mail
 logger = logging.getLogger(__name__)
 # Create your views here.
 
+@login_required
 def BASE(request):
     # Check if the user is authenticated
     if request.user.is_authenticated:
         # Redirect to the corresponding dashboard based on the user's group
-        if request.user.groups.filter(name='administrator').exists():
+        if request.user.groups.filter(name='main administrator').exists():
             return redirect('admin_dashboard')
+        elif request.user.groups.filter(name='sub_admins').exists():
+            return redirect('sub_admin_dashboard')
         elif request.user.groups.filter(name='teacher').exists():
             return redirect('teacher_dashboard')
         elif request.user.groups.filter(name='parent').exists():
             return redirect('parent_dashboard')
+        else:
+            # If the user does not belong to any known group, return a 403 Forbidden response
+            return HttpResponse('Access denied', status=403)
     else:
         # If not authenticated, redirect to the login page
         return redirect('login')
+    
 
 def Login(request):
     if request.method == 'POST':
@@ -76,14 +84,23 @@ def School_Admin_Reg(request):
             group = Group.objects.get(id=3)  # Assuming group id=3 corresponds to 'administrator'
             user.groups.add(group)
 
-            # Create the School and save the username of the admin
-            School.objects.create(
+            # Create the School
+            school = School.objects.create(
                 school_name=school_name,
                 address=address,
                 contact=contact,
                 school_admin_first_name=school_admin_first_name,
                 school_admin_last_name=school_admin_last_name,
                 school_admin_username=username  # Save the admin's username
+            )
+
+            # Create the Admin instance
+            Admin.objects.create(
+                school=school,
+                first_name=school_admin_first_name,
+                second_name=school_admin_last_name,
+                user=user,
+                username=username
             )
 
             return redirect('login')  # Redirect to login page after successful registration
@@ -100,6 +117,56 @@ def Admin_Dashboard(request):
     return render(request, 'administrator/admin_dashboard.html')
 
 @login_required
+def Sub_Admin_Reg(request):
+    school = get_object_or_404(School, school_admin_username=request.user.username)
+
+    if request.method == 'POST':
+        form = SubAdminRegistrationForm(request.POST, school=school)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            password = form.cleaned_data['password']
+            confirm_password = form.cleaned_data['confirm_password']
+
+            if password == confirm_password:
+                # Create the User
+                user = User.objects.create(
+                    username=username,
+                    first_name=form.cleaned_data['sub_admin_first_name'],
+                    last_name=form.cleaned_data['sub_admin_last_name'],
+                    password=make_password(password)
+                )
+                
+                # Add the user to the sub admin group
+                group = Group.objects.get(id=9)  # Assuming group id=9 corresponds to 'sub admin'
+                user.groups.add(group)
+                
+                # Create the Admin instance
+                Admin.objects.create(
+                    school=form.cleaned_data['sub_admin_school'],
+                    first_name=form.cleaned_data['sub_admin_first_name'],
+                    second_name=form.cleaned_data['sub_admin_last_name'],
+                    user=user,
+                    username=username,
+                    contact_number=form.cleaned_data['contact_number']  # Save contact number
+                )
+
+                # Show success message
+                messages.success(request, f"Sub Admin {user.get_full_name()} registered successfully!")
+                return redirect('sub_admin_register')  # Redirect after successful registration
+
+            else:
+                return render(request, 'administrator/sub_admin_register.html', {'form': form, 'error': 'Passwords do not match'})
+        else:
+            return render(request, 'administrator/sub_admin_register.html', {'form': form})
+    else:
+        form = SubAdminRegistrationForm(school=school)
+    
+    return render(request, 'administrator/sub_admin_register.html', {'form': form})
+
+def Sub_Admin_Dashboard(request):
+    return render(request,'sub_admin/sub_admin_dashboard.html')
+
+
 def Employee_Reg(request):
     if request.method == 'POST':
         form = EmployeeRegistrationForm(request.POST, request=request)
@@ -140,6 +207,7 @@ def Employee_Reg(request):
                 Teacher.objects.create(
                     school=form.cleaned_data['school'],
                     employee=employee,
+                    user=user,  # Link the user to the Teacher model
                     user_name=user.username,  # Save the username in the Teacher model
                     first_name=form.cleaned_data['first_name'],
                     last_name=form.cleaned_data['second_name'],
@@ -151,6 +219,7 @@ def Employee_Reg(request):
                 Warden.objects.create(
                     school=form.cleaned_data['school'],
                     employee=employee,
+                    user=user,  # Link the user to the Warden model
                     user_name=user.username,  # Save the username in the Warden model
                     first_name=form.cleaned_data['first_name'],
                     last_name=form.cleaned_data['second_name'],
@@ -166,21 +235,107 @@ def Employee_Reg(request):
 
     return render(request, 'administrator/employee_registration.html', {'form': form})
 
+@login_required
+def Employee_Reg_Sub_Admin(request):
+    if request.method == 'POST':
+        form = EmployeeRegistrationForm(request.POST, request=request)
+        if form.is_valid():
+            # Create User object
+            user = User.objects.create_user(
+                username=form.cleaned_data['username'],
+                password=form.cleaned_data['password'],
+                first_name=form.cleaned_data['first_name'],
+                last_name=form.cleaned_data['second_name'],
+            )
+            
+            # Assign user to the appropriate group based on designation
+            designation = form.cleaned_data['designation']
+            group_id_mapping = {
+                'Teacher': 1,
+                'Warden': 5,
+                'Peon': 6,
+                'Security': 7,
+                'Office Staff': 8,
+            }
+            group = Group.objects.get(id=group_id_mapping[designation])
+            user.groups.add(group)
+
+            # Get the school associated with the logged-in sub-admin or main admin
+            school = form.cleaned_data['school']
+
+            # Create Employee object with the user linked
+            employee = Employee.objects.create(
+                school=school,
+                user=user,  # Linking the user to the employee
+                user_name=user.username,  # Save the username in the Employee model
+                first_name=form.cleaned_data['first_name'],
+                second_name=form.cleaned_data['second_name'],
+                contact_number=form.cleaned_data['contact_number'],
+                designation=form.cleaned_data['designation'],
+            )
+
+            # If the designation is Teacher, create an entry in the Teacher model
+            if designation == 'Teacher':
+                Teacher.objects.create(
+                    school=school,
+                    employee=employee,
+                    user=user,  # Link the user to the Teacher model
+                    user_name=user.username,  # Save the username in the Teacher model
+                    first_name=form.cleaned_data['first_name'],
+                    last_name=form.cleaned_data['second_name'],
+                    contact_number=form.cleaned_data['contact_number'],
+                )
+
+            # If the designation is Warden, create an entry in the Warden model
+            elif designation == 'Warden':
+                Warden.objects.create(
+                    school=school,
+                    employee=employee,
+                    user=user,  # Link the user to the Warden model
+                    user_name=user.username,  # Save the username in the Warden model
+                    first_name=form.cleaned_data['first_name'],
+                    last_name=form.cleaned_data['second_name'],
+                    contact_number=form.cleaned_data['contact_number'],
+                )
+
+            # Add a success message
+            messages.success(request, f"{designation} employee registered successfully!")
+
+            return redirect('employee_registration_sub_admin')  # Redirect after successful registration
+    else:
+        form = EmployeeRegistrationForm(request=request)
+
+    return render(request, 'sub_admin/employee_registration.html', {'form': form})
+
 
 @login_required
 def Assign_Class_Teacher(request):
-    # Get the school of the logged-in school admin
-    school = get_object_or_404(School, school_admin_username=request.user.username)
+    # Get the school of the logged-in user (admin or sub-admin)
+    if request.user.groups.filter(name='main administrator').exists():
+        # Main admin
+        school = get_object_or_404(School, school_admin_username=request.user.username)
+    elif request.user.groups.filter(name='sub_admins').exists():
+        # Sub-admin
+        admin = get_object_or_404(Admin, user=request.user)
+        school = admin.school
+    else:
+        # Handle case where user is neither admin nor sub-admin
+        messages.error(request, "You do not have permission to access this page.")
+        return redirect('home')  # Redirect to a home page or other appropriate page
 
     if request.method == 'POST':
         form = AssignClassTeacherForm(request.POST, school=school)
         if form.is_valid():
             class_teacher = form.save(commit=False)
             class_teacher.school = school  # Set the school to the admin's school
+
+            # Get the teacher instance and assign its user to class_teacher
+            teacher = form.cleaned_data['Teacher']
+            class_teacher.user = teacher.user  # Correctly set the User instance
+
             class_teacher.save()
 
             # Update the teacher's is_class_teacher field
-            teacher = form.cleaned_data['Teacher']
             teacher.is_class_teacher = True
             teacher.save()
 
@@ -192,6 +347,35 @@ def Assign_Class_Teacher(request):
 
     return render(request, 'administrator/assign_class_teacher.html', {'form': form})
 
+@login_required
+def view_all_sub_admins(request):
+    if request.user.groups.filter(name='main administrator').exists():
+        # Get the school of the logged-in main administrator
+        school = get_object_or_404(School, school_admin_username=request.user.username)
+        sub_admins = Admin.objects.filter(school=school, user__groups__name='sub_admins')
+    else:
+        # Handle unauthorized access
+        messages.error(request, "You do not have permission to view this page.")
+        return redirect('admin_dashboard')  
+
+    return render(request, 'administrator/admin_dashboard/view_all_sub_admins.html', {'sub_admins': sub_admins})
+
+@login_required
+def delete_sub_admin(request, id):
+    if request.user.groups.filter(name='main administrator').exists():
+        sub_admin = get_object_or_404(Admin, id=id)
+
+        admin_school = get_object_or_404(School, school_admin_username=request.user.username)
+        if sub_admin.school == admin_school:
+            sub_admin.user.delete() 
+            messages.success(request, f"Sub-admin {sub_admin.username} has been deleted.")
+        else:
+            messages.error(request, "You do not have permission to delete this sub-admin.")
+    else:
+        messages.error(request, "You do not have permission to perform this action.")
+
+    
+    return redirect('view_all_sub_admins')
 
 def Role(request):
     if request.method == "POST":

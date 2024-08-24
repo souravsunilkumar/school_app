@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>All Sub-Admins</h1>
+
+{% if sub_admins %}
+    <table>
+        <thead>
+            <tr>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>Username</th>
+                <th>Contact Number</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub_admin in sub_admins %}
+                <tr>
+                    <td>{{ sub_admin.first_name }}</td>
+                    <td>{{ sub_admin.second_name }}</td>
+                    <td>{{ sub_admin.username }}</td>
+                    <td>{{ sub_admin.user.employee_set.first.contact_number }}</td>
+                    <td>
+                        <form action="{% url 'delete_sub_admin' sub_admin.id %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" onclick="return confirm('Are you sure you want to delete this sub-admin?');">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No sub-admins found.</p>
+{% endif %}
+{% endblock %}

@@ -64,6 +64,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                
             ],
         },
     },
@@ -83,6 +84,7 @@ DATABASES = {
         'PASSWORD': 'sourav',
         'HOST': 'localhost',  # Or your MySQL server address
         'PORT': '3306',       # Default MySQL port
+        
     }
 }
 

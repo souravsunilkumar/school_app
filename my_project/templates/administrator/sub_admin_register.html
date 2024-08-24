@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Register Sub Admin</h1>
+
+{% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+            <li class="{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+
+<form method="POST">
+    {% csrf_token %}
+    <div>
+        <label for="username">Username:</label>
+        <input type="text" name="username" id="username" required>
+    </div>
+    <div>
+        <label for="password">Password:</label>
+        <input type="password" name="password" id="password" required>
+    </div>
+    <div>
+        <label for="confirm_password">Confirm Password:</label>
+        <input type="password" name="confirm_password" id="confirm_password" required>
+    </div>
+    <div>
+        <label for="sub_admin_first_name">Sub Admin First Name:</label>
+        <input type="text" name="sub_admin_first_name" id="sub_admin_first_name" required>
+    </div>
+    <div>
+        <label for="sub_admin_last_name">Sub Admin Last Name:</label>
+        <input type="text" name="sub_admin_last_name" id="sub_admin_last_name" required>
+    </div>
+    <div>
+        <label for="sub_admin_school">School:</label>
+        <select name="sub_admin_school" id="sub_admin_school" required>
+            {% for school in form.fields.sub_admin_school.queryset %}
+                <option value="{{ school.id }}" {% if school.id == form.fields.sub_admin_school.initial.id %}selected{% endif %}>{{ school.school_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="contact_number">Contact Number:</label>
+        <input type="text" name="contact_number" id="contact_number" required>
+    </div>
+    <button type="submit">Register</button>
+</form>
+{% endblock %}

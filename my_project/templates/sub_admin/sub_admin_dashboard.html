@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Sub Admin dashboard</h1>
+<a href="{% url 'employee_registration_sub_admin' %}">Register Employee</a><br>
+<a href="{% url 'assign_class_teacher' %}">Assign Class Teacher</a>
+{% endblock %}

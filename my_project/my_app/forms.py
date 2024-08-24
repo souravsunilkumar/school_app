@@ -16,15 +16,29 @@ class EmployeeRegistrationForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super(EmployeeRegistrationForm, self).__init__(*args, **kwargs)
-        
-        # Prefill the school field based on the logged-in school admin
+
         if self.request and self.request.user.is_authenticated:
-            admin_username = self.request.user.username
-            try:
-                school = School.objects.get(school_admin_username=admin_username)
-                self.fields['school'].queryset = School.objects.filter(id=school.id)
-                self.fields['school'].initial = school
-            except School.DoesNotExist:
+            user = self.request.user
+
+            if user.groups.filter(name='main administrator').exists():
+                # Main administrator should see the school they manage
+                try:
+                    admin = Admin.objects.get(user=user)
+                    self.fields['school'].queryset = School.objects.filter(id=admin.school.id)
+                    self.fields['school'].initial = admin.school
+                except Admin.DoesNotExist:
+                    self.fields['school'].queryset = School.objects.none()
+            
+            elif user.groups.filter(name='sub_admins').exists():
+                # Sub-admin should see the school they are associated with
+                try:
+                    admin = Admin.objects.get(user=user)
+                    self.fields['school'].queryset = School.objects.filter(id=admin.school.id)
+                    self.fields['school'].initial = admin.school
+                except Admin.DoesNotExist:
+                    self.fields['school'].queryset = School.objects.none()
+            
+            else:
                 self.fields['school'].queryset = School.objects.none()
 
     def clean(self):
@@ -37,29 +51,35 @@ class EmployeeRegistrationForm(forms.ModelForm):
 
         return cleaned_data
     
-
-    
-class StudentForm(forms.ModelForm):
-    school = forms.ModelChoiceField(
-        queryset=School.objects.all(),
-        disabled=True,  # Make it read-only
-        widget=forms.Select
-    )
+class SubAdminRegistrationForm(forms.ModelForm):
+    username = forms.CharField(max_length=150, required=True)
+    password = forms.CharField(widget=forms.PasswordInput, required=True)
+    confirm_password = forms.CharField(widget=forms.PasswordInput, required=True)
+    sub_admin_first_name = forms.CharField(max_length=30, required=True)
+    sub_admin_last_name = forms.CharField(max_length=30, required=True)
+    sub_admin_school = forms.ModelChoiceField(queryset=School.objects.none(), required=True)
+    contact_number = forms.CharField(max_length=15, required=True)
 
     class Meta:
-        model = Student
-        fields = ['admission_number', 'first_name', 'last_name', 'roll_number', 'class_assigned', 'division_assigned', 'school']
-        widgets = {
-            'class_assigned': forms.TextInput(attrs={'readonly': 'readonly'}),
-            'division_assigned': forms.TextInput(attrs={'readonly': 'readonly'}),
-        }
+        model = Admin
+        fields = ['username', 'password', 'confirm_password', 'sub_admin_first_name', 'sub_admin_last_name', 'sub_admin_school', 'contact_number']
 
     def __init__(self, *args, **kwargs):
-        teacher = kwargs.pop('teacher', None)
+        school = kwargs.pop('school', None)
         super().__init__(*args, **kwargs)
-        if teacher:
-            self.fields['school'].initial = teacher.school
+        if school:
+            self.fields['sub_admin_school'].queryset = School.objects.filter(id=school.id)
+            self.fields['sub_admin_school'].initial = school
 
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get('password')
+        confirm_password = cleaned_data.get('confirm_password')
+
+        if password and confirm_password and password != confirm_password:
+            self.add_error('confirm_password', "Passwords do not match")
+
+        return cleaned_data
 
 class AssignClassTeacherForm(forms.ModelForm):
     class Meta:

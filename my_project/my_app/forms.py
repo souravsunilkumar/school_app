@@ -170,3 +170,13 @@ class SubjectForm(forms.ModelForm):
     class Meta:
         model = Subject
         fields = ['subject_name']
+
+
+class StudentForm(forms.ModelForm):
+    class Meta:
+        model = Student
+        fields = [
+            'first_name', 'last_name', 'gender', 'admission_number', 
+            'roll_number', 'parents_number', 'parents_email', 
+            'class_assigned', 'division_assigned'
+        ]

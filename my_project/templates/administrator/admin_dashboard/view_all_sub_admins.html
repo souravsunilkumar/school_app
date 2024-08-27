@@ -3,7 +3,7 @@
 <h1>All Sub-Admins</h1>
 
 {% if sub_admins %}
-    <table>
+    <table border="2">
         <thead>
             <tr>
                 <th>First Name</th>
@@ -19,7 +19,7 @@
                     <td>{{ sub_admin.first_name }}</td>
                     <td>{{ sub_admin.second_name }}</td>
                     <td>{{ sub_admin.username }}</td>
-                    <td>{{ sub_admin.user.employee_set.first.contact_number }}</td>
+                    <td>{{ sub_admin.contact_number }}</td>
                     <td>
                         <form action="{% url 'delete_sub_admin' sub_admin.id %}" method="post">
                             {% csrf_token %}

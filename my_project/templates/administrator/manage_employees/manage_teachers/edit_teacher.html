@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Edit Teacher</h1>
+<form method="post">
+    {% csrf_token %}
+    <label for="first_name">First Name:</label>
+    <input type="text" id="first_name" name="first_name" value="{{ teacher.first_name }}"><br>
+
+    <label for="last_name">Last Name:</label>
+    <input type="text" id="last_name" name="last_name" value="{{ teacher.last_name }}"><br>
+
+    <label for="contact_number">Contact Number:</label>
+    <input type="text" id="contact_number" name="contact_number" value="{{ teacher.contact_number }}"><br>
+
+   
+    <button type="submit">Save Changes</button><br>
+</form>
+{% endblock %}

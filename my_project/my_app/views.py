@@ -1039,3 +1039,199 @@ def view_student_marks(request):
     return render(request, 'teacher/manage_students/select_exam_for_marks.html', {
         'exams': exams,
     })
+
+def Manage_Employees(request):
+    return render(request,'administrator/manage_employees/manage_employees.html')
+
+@login_required
+def Manage_teachers(request):
+    # Get the school of the logged-in user
+    school = request.user.admin.school if hasattr(request.user, 'admin') else request.user.sub_admin.school
+    
+    # Filter teachers based on the school
+    teachers = Teacher.objects.filter(school=school)
+
+    context = {
+        'teachers': teachers,
+    }
+    
+    return render(request, 'administrator/manage_employees/manage_teachers/manage_teachers.html', context)
+
+@login_required
+def edit_teacher(request, teacher_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    
+    if request.method == 'POST':
+        # Update Teacher model
+        teacher.first_name = request.POST['first_name']
+        teacher.last_name = request.POST['last_name']
+        
+        teacher.contact_number = request.POST['contact_number']
+        
+        
+        # Update linked models
+        if teacher.is_class_teacher:
+            Class_Teacher.objects.update_or_create(
+                Teacher=teacher,
+                defaults={
+                    
+                    'first_name': teacher.first_name,
+                    'last_name': teacher.last_name,
+                    'school': teacher.school
+                }
+            )
+        else:
+            Class_Teacher.objects.filter(Teacher=teacher).delete()
+        
+        # Update Employee model
+        employee = teacher.employee
+        employee.first_name = teacher.first_name
+        employee.second_name = teacher.last_name
+        
+        employee.contact_number = teacher.contact_number
+        employee.save()
+
+        # Update User model
+        user = teacher.user
+        
+        user.first_name = teacher.first_name
+        user.last_name = teacher.last_name
+        user.save()
+
+        teacher.save()
+        
+        return redirect('manage_teachers')
+
+    context = {
+        'teacher': teacher,
+    }
+    
+    return render(request, 'administrator/manage_employees/manage_teachers/edit_teacher.html', context)
+
+@login_required
+def delete_teacher(request, teacher_id):
+    teacher = get_object_or_404(Teacher, id=teacher_id)
+    
+    if request.method == 'POST':
+        # Delete related models
+        Class_Teacher.objects.filter(Teacher=teacher).delete()
+        Employee.objects.filter(id=teacher.employee.id).delete()
+        User.objects.filter(id=teacher.user.id).delete()
+        
+        # Delete Teacher model
+        teacher.delete()
+        
+        return redirect('manage_teachers')
+
+    context = {
+        'teacher': teacher,
+    }
+    
+    return render(request, 'administrator/manage_employees/manage_teachers/delete_teacher.html', context)
+
+@login_required
+def manage_students(request):
+    # Get the school of the logged-in admin or sub-admin
+    if request.user.groups.filter(name='sub_admins').exists():
+        school = request.user.admin.school
+    else:
+        school = request.user.admin.school
+    
+    # Get all classes assigned to teachers in this school
+    classes = Class_Teacher.objects.filter(school=school)
+    
+    context = {
+        'classes': classes,
+    }
+    
+    return render(request, 'administrator/manage_students/manage_students.html', context)
+
+@login_required
+def class_students(request, class_assigned, division_assigned):
+    # Get the school of the logged-in admin or sub-admin
+    if request.user.groups.filter(name='sub_admins').exists():
+        school = request.user.admin.school
+    else:
+        school = request.user.admin.school
+    
+    # Get the students of the specified class and division
+    students = Student.objects.filter(
+        school=school, 
+        class_assigned=class_assigned, 
+        division_assigned=division_assigned
+    )
+    
+    # Get all exams associated with the student's class and division
+    exams = Exam.objects.filter(
+        school=school,
+        class_assigned=class_assigned,
+        division_assigned=division_assigned
+    )
+    
+    context = {
+        'class': {
+            'class_assigned': class_assigned,
+            'division_assigned': division_assigned,
+        },
+        'students': students,
+        'exams': exams,  # Pass exams to the template
+    }
+    
+    return render(request, 'administrator/manage_students/class_students.html', context)
+
+@login_required
+def edit_student(request, student_id):
+    student = get_object_or_404(Student, id=student_id)
+    
+    if request.method == "POST":
+        form = StudentForm(request.POST, instance=student)
+        if form.is_valid():
+            form.save()
+            return redirect('class_students', student.class_assigned, student.division_assigned)
+    else:
+        form = StudentForm(instance=student)
+    
+    context = {
+        'form': form,
+        'student': student
+    }
+    
+    return render(request, 'administrator/manage_students/edit_student.html', context)
+
+@login_required
+def delete_student(request, student_id):
+    student = get_object_or_404(Student, id=student_id)
+    
+    if request.method == "POST":
+        student.delete()
+        return redirect('class_students', student.class_assigned, student.division_assigned)
+    
+    context = {
+        'student': student
+    }
+    
+    return render(request, 'administrator/manage_students/delete_student.html', context)
+
+@login_required
+def view_student_all_marks(request, student_id):
+    student = Student.objects.get(id=student_id)
+    school = student.school
+
+    # Get all exams for the student's school
+    exams = Exam.objects.filter(school=school)
+    
+    # Prepare the data structure for rendering
+    exam_subjects = {}
+    for exam in exams:
+        subjects = Subject.objects.filter(exam=exam)
+        exam_subjects[exam.exam_name] = {}
+        for subject in subjects:
+            marks = Marks.objects.filter(student=student, subject=subject, exam=exam)
+            exam_subjects[exam.exam_name][subject.subject_name] = marks
+    
+    context = {
+        'student': student,
+        'exam_subjects': exam_subjects
+    }
+    
+    return render(request, 'administrator/manage_students/view_all_marks.html', context)

@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Marks and Progress for {{ student.first_name }} {{ student.last_name }}</h1>
+
+<!-- Display Marks in Separate Tables for Different Exams -->
+{% for exam, subjects in exam_subjects.items %}
+    <h2>Marks for Exam: {{ exam }}</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Marks Obtained</th>
+                <th>Out Of</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for subject_name, marks_list in subjects.items %}
+                {% for mark in marks_list %}
+                    <tr>
+                        <td>{{ subject_name }}</td>
+                        <td>{{ mark.marks_obtained }}</td>
+                        <td>{{ mark.out_of }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="3">No marks found for this subject.</td>
+                    </tr>
+                {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+{% endfor %}
+
+<!-- Chart for Subject Progress -->
+<h2>Overall Progress Chart</h2>
+<canvas id="progressChart" width="800" height="400"></canvas>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('progressChart').getContext('2d');
+
+        const subjectNames = [];
+        const labels = [];
+        const datasets = [];
+
+        // Extracting data for chart
+        {% for exam, subjects in exam_subjects.items %}
+            {% for subject_name, marks_list in subjects.items %}
+                {% for mark in marks_list %}
+                    if (!labels.includes('{{ mark.exam }}')) {
+                        labels.push('{{ mark.exam }}');
+                    }
+                    
+                    if (!subjectNames.includes('{{ subject_name|escapejs }}')) {
+                        subjectNames.push('{{ subject_name|escapejs }}');
+                        datasets.push({
+                            label: '{{ subject_name|escapejs }}',
+                            data: [],
+                            fill: false,
+                            borderColor: getRandomColor(),
+                            tension: 0.1
+                        });
+                    }
+
+                    const dataset = datasets.find(ds => ds.label === '{{ subject_name|escapejs }}');
+                    dataset.data.push({{ mark.marks_obtained|default:0 }});
+                {% endfor %}
+            {% endfor %}
+        {% endfor %}
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Exam'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Marks Obtained'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+    });
+</script>
+
+{% block extra_js %}
+    <!-- Include Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% endblock %}

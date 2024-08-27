@@ -36,6 +36,18 @@ urlpatterns = [
     path('assign-class_teacher/', views.Assign_Class_Teacher, name='assign_class_teacher'),
     path('view_all_sub_admins/', views.view_all_sub_admins, name='view_all_sub_admins'),
     path('delete_sub_admin/<int:id>/', views.delete_sub_admin, name='delete_sub_admin'),
+    path('manage-employees/', views.Manage_Employees, name='manage_employees'),
+    path('manage-teachers/', views.Manage_teachers, name='manage_teachers'),
+    path('edit_teacher/<int:teacher_id>/', views.edit_teacher, name='edit_teacher'),
+    path('delete_teacher/<int:teacher_id>/', views.delete_teacher, name='delete_teacher'),
+
+    path('manage_students/', views.manage_students, name='manage_all_students'),
+    path('manage_students/class/<str:class_assigned>/<str:division_assigned>/', views.class_students, name='class_students'),
+    path('edit_student/<int:student_id>/', views.edit_student, name='edit_student'),
+    path('delete_student/<int:student_id>/', views.delete_student, name='delete_student'),
+
+
+
     path('teacher/dashboard/', views.Teacher_Dashboard, name='teacher_dashboard'),
     path('teacher/manage-students/', views.Manage_Students, name='manage_students'),
     path('teacher/add-students/', views.Add_Students, name='add_students'),
@@ -45,6 +57,7 @@ urlpatterns = [
 
     path('select-date/', views.Select_Date, name='select_date'),
     path('teacher/manage-students/edit-attendance/', views.Edit_Attendance, name='edit_attendance'),
+    path('view_student_all_marks/<int:student_id>/', views.view_student_all_marks, name='view_student_all_marks'),
 
     path('add_update_marks/', views.add_update_marks, name='add_update_marks'),
     path('create_exam/', views.create_exam, name='create_exam'),

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Manage Students</h1>
+
+{% if classes %}
+    <ul>
+        {% for class in classes %}
+            <li>
+                <a href="{% url 'class_students' class.class_assigned class.division_assigned %}">
+                    Class {{ class.class_assigned }} - Division {{ class.division_assigned }}
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No classes found.</p>
+{% endif %}
+
+{% endblock %}
